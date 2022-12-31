@@ -3,7 +3,7 @@ from typing import Optional
 
 import torch
 
-import torchsearchsorted
+# import torchsearchsorted
 
 
 def img2mse(img_src, img_tgt):
@@ -238,9 +238,11 @@ def sample_pdf(bins, weights, num_samples, det=False):
         u = torch.rand(list(cdf.shape[:-1]) + [num_samples]).to(weights)
 
     # Invert CDF
-    inds = torchsearchsorted.searchsorted(
-        cdf.contiguous(), u.contiguous(), side="right"
-    )
+    # inds = torchsearchsorted.searchsorted(
+    #     cdf.contiguous(), u.contiguous(), side="right"
+    # )
+    inds = torch.searchsorted(cdf.contiguous(), u.contiguous(), right=True) 
+
     below = torch.max(torch.zeros_like(inds), inds - 1)
     above = torch.min((cdf.shape[-1] - 1) * torch.ones_like(inds), inds)
     inds_g = torch.stack((below, above), -1)
@@ -285,7 +287,9 @@ def sample_pdf_2(bins, weights, num_samples, det=False):
     # Invert CDF
     u = u.contiguous()
     cdf = cdf.contiguous()
-    inds = torchsearchsorted.searchsorted(cdf, u, side="right")
+    # inds = torchsearchsorted.searchsorted(cdf, u, side="right")
+    inds = torch.searchsorted(cdf, u, right=True)
+
     below = torch.max(torch.zeros_like(inds - 1), inds - 1)
     above = torch.min((cdf.shape[-1] - 1) * torch.ones_like(inds), inds)
     inds_g = torch.stack((below, above), dim=-1)  # (batchsize, num_samples, 2)

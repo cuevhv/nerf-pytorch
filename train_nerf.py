@@ -120,6 +120,8 @@ def main():
         include_input_xyz=cfg.models.coarse.include_input_xyz,
         include_input_dir=cfg.models.coarse.include_input_dir,
         use_viewdirs=cfg.models.coarse.use_viewdirs,
+        num_layers=cfg.models.coarse.num_layers,
+        hidden_size=cfg.models.coarse.hidden_size,
     )
     model_coarse.to(device)
     # If a fine-resolution model is specified, initialize it.
@@ -131,6 +133,8 @@ def main():
             include_input_xyz=cfg.models.fine.include_input_xyz,
             include_input_dir=cfg.models.fine.include_input_dir,
             use_viewdirs=cfg.models.fine.use_viewdirs,
+            num_layers=cfg.models.coarse.num_layers,
+            hidden_size=cfg.models.coarse.hidden_size,
         )
         model_fine.to(device)
 
@@ -168,7 +172,7 @@ def main():
 
         model_coarse.train()
         if model_fine:
-            model_coarse.train()
+            model_fine.train()
 
         rgb_coarse, rgb_fine = None, None
         target_ray_values = None
@@ -292,7 +296,7 @@ def main():
             tqdm.write("[VAL] =======> Iter: " + str(i))
             model_coarse.eval()
             if model_fine:
-                model_coarse.eval()
+                model_fine.eval()
 
             start = time.time()
             with torch.no_grad():

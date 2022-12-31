@@ -110,6 +110,14 @@ def load_blender_data(basedir, half_res=False, testskip=1, debug=False):
             for i in range(imgs.shape[0])
         ]
         imgs = torch.stack(imgs, 0)
+    
+    else:
+        imgs = [
+            torch.from_numpy(imgs[i]
+            )
+            for i in range(imgs.shape[0])
+        ]
+        imgs = torch.stack(imgs, 0)
 
     poses = torch.from_numpy(poses)
 
