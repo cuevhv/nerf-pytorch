@@ -5,7 +5,7 @@ import cv2
 import imageio
 import numpy as np
 import torch
-
+from tqdm import tqdm
 
 def translate_by_t_along_z(t):
     tform = np.eye(4).astype(np.float32)
@@ -55,8 +55,8 @@ def load_blender_data(basedir, half_res=False, testskip=1, debug=False):
             skip = 1
         else:
             skip = testskip
-
-        for frame in meta["frames"][::skip]:
+        print(f"loading {s}")
+        for frame in tqdm(meta["frames"][::skip]):
             fname = os.path.join(basedir, frame["file_path"] + ".png")
             imgs.append(imageio.imread(fname))
             poses.append(np.array(frame["transform_matrix"]))
