@@ -14,6 +14,8 @@ from nerf import (CfgNode, get_embedding_function, get_ray_bundle, img2mse,
                   load_blender_data, load_llff_data, meshgrid_xy, models,
                   mse2psnr, run_one_iter_of_nerf)
 
+from utils.viewer import show_dirs
+
 
 def main():
 
@@ -58,6 +60,9 @@ def main():
                 half_res=cfg.dataset.half_res,
                 testskip=cfg.dataset.testskip,
             )
+
+            show_dirs(poses, cfg)
+
             i_train, i_val, i_test = i_split
             H, W, focal = hwf
             H, W = int(H), int(W)
