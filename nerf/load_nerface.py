@@ -37,7 +37,11 @@ def pose_spherical(theta, phi, radius):
     return c2w
 
 
-def load_blender_data(basedir, half_res=False, testskip=1, debug=False):
+def load_nerface_data(basedir, half_res=False, testskip=1, debug=False,
+                      load_expressions=True, load_bbox=True):
+    """ based on 
+    https://github.com/gafniguy/4D-Facial-Avatars/blob/977606261b8d7e551dd455d66cd187d0d23c5a75/nerface_code/nerf-pytorch/nerf/load_flame.py
+    """
     splits = ["train", "val", "test"]
     metas = {}
     for s in splits:
@@ -56,7 +60,7 @@ def load_blender_data(basedir, half_res=False, testskip=1, debug=False):
         imgs = []
         poses = []
         expressions = []
-        
+        bboxs = []
         if s == "train" or testskip == 0:
             skip = 1
         else:
@@ -66,11 +70,29 @@ def load_blender_data(basedir, half_res=False, testskip=1, debug=False):
             fname = os.path.join(basedir, frame["file_path"] + ".png")
             imgs.append(imageio.imread(fname))
             poses.append(np.array(frame["transform_matrix"]))
+
+            if load_expressions:
+                expressions.append(np.array(frame["expression"]))
+            else:
+                expressions.append(np.zeros(50)) # we have 50 expressions from DECA
+            
+            # bbox deca [left, top, right, bottom] -> [top, bottom, left, right] 
+            if load_bbox:
+                bboxs.append(np.array([frame["bbox"][1], frame["bbox"][3], frame["bbox"][0], frame["bbox"][2]]))
+            else:
+                bboxs.append(np.array([0.0, 1.0, 0.0, 1.0])) 
+
+        poses = np.array(poses).astype(np.float32)
+        expressions = np.array(expressions).astype(np.float32)
+        bboxs = np.array(bboxs).astype(np.float32)
+
         imgs = (np.array(imgs) / 255.0).astype(np.float32)
         poses = np.array(poses).astype(np.float32)
         counts.append(counts[-1] + imgs.shape[0])
         all_imgs.append(imgs)
         all_poses.append(poses)
+        all_expressions.append(expressions)
+        all_bboxs.append(bboxs)
 
     i_split = [np.arange(counts[i], counts[i + 1]) for i in range(3)]
 
@@ -81,6 +103,10 @@ def load_blender_data(basedir, half_res=False, testskip=1, debug=False):
     camera_angle_x = float(meta["camera_angle_x"])
     focal = 0.5 * W / np.tan(0.5 * camera_angle_x)
 
+    if meta["intrinsics"]:
+        intrinsics = np.array(meta["intrinsics"])
+    else:
+        intrinsics = np.array[[focal, focal, 0.5, 0.5]]  # fx fy cx cy
     render_poses = torch.stack(
         [
             torch.from_numpy(pose_spherical(angle, -30.0, 4.0))
@@ -108,10 +134,11 @@ def load_blender_data(basedir, half_res=False, testskip=1, debug=False):
         # TODO: resize images using INTER_AREA (cv2)
         H = H // 2
         W = W // 2
-        focal = focal / 2.0
+        # focal = focal / 2.0
+        intrinsics[:2] = intrinsics[:2] * 0.5
         imgs = [
             torch.from_numpy(
-                cv2.resize(imgs[i], dsize=(400, 400), interpolation=cv2.INTER_AREA)
+                cv2.resize(imgs[i], dsize=(H, W), interpolation=cv2.INTER_AREA)
             )
             for i in range(imgs.shape[0])
         ]
@@ -126,5 +153,12 @@ def load_blender_data(basedir, half_res=False, testskip=1, debug=False):
         imgs = torch.stack(imgs, 0)
 
     poses = torch.from_numpy(poses)
+    expressions = torch.from_numpy(expressions)
+    bboxs[:,0:2] *= H  # top, left
+    bboxs[:,2:4] *= W  # right, bottom
+    bboxs = np.floor(bboxs)
+    bboxs = torch.from_numpy(bboxs).int()
 
-    return imgs, poses, render_poses, [H, W, focal], i_split
+    print("finish loading")
+
+    return imgs, poses, render_poses, [H, W, intrinsics], i_split
