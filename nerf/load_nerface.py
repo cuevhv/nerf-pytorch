@@ -66,7 +66,8 @@ def load_nerface_data(basedir, half_res=False, testskip=1, debug=False,
         else:
             skip = testskip
         print(f"loading {s}")
-        for frame in tqdm(meta["frames"][::skip]):
+        for i, frame in tqdm(enumerate(meta["frames"][::skip])):
+            # if i > 100: break
             fname = os.path.join(basedir, frame["file_path"] + ".png")
             imgs.append(imageio.imread(fname))
             poses.append(np.array(frame["transform_matrix"]))
@@ -98,6 +99,7 @@ def load_nerface_data(basedir, half_res=False, testskip=1, debug=False,
 
     imgs = np.concatenate(all_imgs, 0)
     poses = np.concatenate(all_poses, 0)
+    expressions = np.concatenate(all_expressions, 0)
 
     H, W = imgs[0].shape[:2]
     camera_angle_x = float(meta["camera_angle_x"])
@@ -161,4 +163,4 @@ def load_nerface_data(basedir, half_res=False, testskip=1, debug=False,
 
     print("finish loading")
 
-    return imgs, poses, render_poses, [H, W, intrinsics], i_split
+    return imgs, poses, render_poses, [H, W, intrinsics], i_split, expressions
