@@ -44,7 +44,7 @@ def main():
     # If a pre-cached dataset is available, skip the dataloader.
     USE_CACHED_DATASET = False
     train_paths, validation_paths = None, None
-    images, poses, render_poses, hwf, i_split = None, None, None, None, None
+    images, poses, render_poses, hwf, i_split, expressions = None, None, None, None, None, None
     H, W, focal, i_train, i_val, i_test = None, None, None, None, None, None
     if hasattr(cfg.dataset, "cachedir") and os.path.exists(cfg.dataset.cachedir):
         train_paths = glob.glob(os.path.join(cfg.dataset.cachedir, "train", "*.data"))
@@ -72,11 +72,14 @@ def main():
                 images = images[..., :3] * images[..., -1:] + (1.0 - images[..., -1:])
 
         if cfg.dataset.type.lower() == "face":
-            images, poses, render_poses, hwf, i_split = load_nerface_data(
+            images, poses, render_poses, hwf, i_split, expressions = load_nerface_data(
                 cfg.dataset.basedir,
                 half_res=cfg.dataset.half_res,
                 testskip=cfg.dataset.testskip,
+                load_expressions=cfg.dataset.use_expression
             )
+            if not cfg.dataset.use_expression:
+                expressions = None
 
             # show_dirs(poses, cfg)
 
@@ -146,6 +149,7 @@ def main():
         use_viewdirs=cfg.models.coarse.use_viewdirs,
         num_layers=cfg.models.coarse.num_layers,
         hidden_size=cfg.models.coarse.hidden_size,
+        use_expression=cfg.dataset.use_expression,
     )
     model_coarse.to(device)
     # If a fine-resolution model is specified, initialize it.
@@ -159,6 +163,7 @@ def main():
             use_viewdirs=cfg.models.fine.use_viewdirs,
             num_layers=cfg.models.coarse.num_layers,
             hidden_size=cfg.models.coarse.hidden_size,
+            use_expression=cfg.dataset.use_expression,
         )
         model_fine.to(device)
 
@@ -233,11 +238,17 @@ def main():
                 mode="train",
                 encode_position_fn=encode_position_fn,
                 encode_direction_fn=encode_direction_fn,
+                expressions=expressions
             )
         else:
             img_idx = np.random.choice(i_train)
             img_target = images[img_idx].to(device)
             pose_target = poses[img_idx, :3, :4].to(device)
+
+            if expressions is not None:
+                expressions_target = expressions[img_idx].to(device)
+            else:
+                expressions_target = None
             
             if cfg.dataset.type.lower() == "face":
                 ray_origins, ray_directions = get_ray_bundle_nerface(H, W, focal, pose_target)
@@ -270,6 +281,7 @@ def main():
                 mode="train",
                 encode_position_fn=encode_position_fn,
                 encode_direction_fn=encode_direction_fn,
+                expressions=expressions_target,
             )
             target_ray_values = target_s
 
@@ -345,16 +357,23 @@ def main():
                         mode="validation",
                         encode_position_fn=encode_position_fn,
                         encode_direction_fn=encode_direction_fn,
+                        expressions=expressions,
                     )
                     target_ray_values = cache_dict["target"].to(device)
                 else:
                     img_idx = np.random.choice(i_val)
                     img_target = images[img_idx].to(device)
                     pose_target = poses[img_idx, :3, :4].to(device)
+                    if expressions is not None:
+                        expressions_target = expressions[img_idx].to(device)
+                    else:
+                        expressions_target = None
+
                     if cfg.dataset.type.lower() == "face":
                         ray_origins, ray_directions = get_ray_bundle_nerface(H, W, focal, pose_target)
                     else:
                         ray_origins, ray_directions = get_ray_bundle(H, W, focal, pose_target)
+
                     rgb_coarse, _, _, rgb_fine, _, _ = run_one_iter_of_nerf(
                         H,
                         W,
@@ -367,6 +386,7 @@ def main():
                         mode="validation",
                         encode_position_fn=encode_position_fn,
                         encode_direction_fn=encode_direction_fn,
+                        expressions=expressions_target
                     )
                     target_ray_values = img_target
                 coarse_loss = img2mse(rgb_coarse[..., :3], target_ray_values[..., :3])
