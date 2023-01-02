@@ -5,7 +5,8 @@ from .nerf_helpers import sample_pdf_2 as sample_pdf
 from .volume_rendering_utils import volume_render_radiance_field
 
 
-def run_network(network_fn, pts, ray_batch, chunksize, embed_fn, embeddirs_fn):
+def run_network(network_fn, pts, ray_batch, chunksize, embed_fn, embeddirs_fn,
+                expressions=None,):
 
     pts_flat = pts.reshape((-1, pts.shape[-1]))
     embedded = embed_fn(pts_flat)
@@ -17,7 +18,12 @@ def run_network(network_fn, pts, ray_batch, chunksize, embed_fn, embeddirs_fn):
         embedded = torch.cat((embedded, embedded_dirs), dim=-1)
 
     batches = get_minibatches(embedded, chunksize=chunksize)
-    preds = [network_fn(batch) for batch in batches]
+
+    if expressions is None:
+        preds = [network_fn(batch) for batch in batches]
+    else:
+        preds = [network_fn(batch, expressions) for batch in batches]
+    
     radiance_field = torch.cat(preds, dim=0)
     radiance_field = radiance_field.reshape(
         list(pts.shape[:-1]) + [radiance_field.shape[-1]]
@@ -33,6 +39,7 @@ def predict_and_render_radiance(
     mode="train",
     encode_position_fn=None,
     encode_direction_fn=None,
+    expressions=None,
 ):
     # TESTED
     num_rays = ray_batch.shape[0]
@@ -73,6 +80,7 @@ def predict_and_render_radiance(
         getattr(options.nerf, mode).chunksize,
         encode_position_fn,
         encode_direction_fn,
+        expressions=expressions,
     )
 
     (
@@ -113,6 +121,7 @@ def predict_and_render_radiance(
             getattr(options.nerf, mode).chunksize,
             encode_position_fn,
             encode_direction_fn,
+            expressions=expressions,
         )
         rgb_fine, disp_fine, acc_fine, _, _ = volume_render_radiance_field(
             radiance_field,
@@ -139,6 +148,7 @@ def run_one_iter_of_nerf(
     mode="train",
     encode_position_fn=None,
     encode_direction_fn=None,
+    expressions=None
 ):
     viewdirs = None
     if options.nerf.use_viewdirs:
@@ -176,6 +186,7 @@ def run_one_iter_of_nerf(
             options,
             encode_position_fn=encode_position_fn,
             encode_direction_fn=encode_direction_fn,
+            expressions=expressions,
         )
         for batch in batches
     ]
