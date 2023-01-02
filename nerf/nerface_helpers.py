@@ -65,14 +65,14 @@ def cumprod_exclusive(tensor: torch.Tensor) -> torch.Tensor:
 
 
 def get_ray_bundle(
-    height: int, width: int, focal_length: float, tform_cam2world: torch.Tensor
+    height: int, width: int, intrinsics: torch.Tensor, tform_cam2world: torch.Tensor
 ):
     r"""Compute the bundle of rays passing through all pixels of an image (one ray per pixel).
 
     Args:
     height (int): Height of an image (number of pixels).
     width (int): Width of an image (number of pixels).
-    focal_length (float or torch.Tensor): Focal length (number of pixels, i.e., calibrated intrinsics).
+    intrinsics (torch.Tensor): intrinsics = [fx fy cx cy] where cx cy in [0,1] relative to image size.
     tform_cam2world (torch.Tensor): A 6-DoF rigid-body transform (shape: :math:`(4, 4)`) that
       transforms a 3D point from the camera frame to the "world" frame for the current example.
 
@@ -95,11 +95,10 @@ def get_ray_bundle(
             height, dtype=tform_cam2world.dtype, device=tform_cam2world.device
         ),
     )
-    breakpoint()
     directions = torch.stack(
         [
-            (ii - width * 0.5) / focal_length,
-            -(jj - height * 0.5) / focal_length,
+            (ii - width * intrinsics[2]) / intrinsics[0],
+            -(jj - height * intrinsics[3]) / intrinsics[1],
             -torch.ones_like(ii),
         ],
         dim=-1,
