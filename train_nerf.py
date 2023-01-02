@@ -351,9 +351,10 @@ def main():
                     img_idx = np.random.choice(i_val)
                     img_target = images[img_idx].to(device)
                     pose_target = poses[img_idx, :3, :4].to(device)
-                    ray_origins, ray_directions = get_ray_bundle(
-                        H, W, focal, pose_target
-                    )
+                    if cfg.dataset.type.lower() == "face":
+                        ray_origins, ray_directions = get_ray_bundle_nerface(H, W, focal, pose_target)
+                    else:
+                        ray_origins, ray_directions = get_ray_bundle(H, W, focal, pose_target)
                     rgb_coarse, _, _, rgb_fine, _, _ = run_one_iter_of_nerf(
                         H,
                         W,
