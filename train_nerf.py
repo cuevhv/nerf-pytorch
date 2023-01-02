@@ -61,7 +61,7 @@ def main():
                 testskip=cfg.dataset.testskip,
             )
 
-            show_dirs(poses, cfg)
+            # show_dirs(poses, cfg)
 
             i_train, i_val, i_test = i_split
             H, W, focal = hwf
