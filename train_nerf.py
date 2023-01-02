@@ -11,8 +11,9 @@ from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm, trange
 
 from nerf import (CfgNode, get_embedding_function, get_ray_bundle, img2mse,
-                  load_blender_data, load_llff_data, meshgrid_xy, models,
-                  mse2psnr, run_one_iter_of_nerf)
+                  load_blender_data, load_nerface_data, load_llff_data, meshgrid_xy, models,
+                  mse2psnr, run_one_iter_of_nerf,
+                  get_ray_bundle_nerface)
 
 from utils.viewer import show_dirs
 
@@ -69,6 +70,24 @@ def main():
             hwf = [H, W, focal]
             if cfg.nerf.train.white_background:
                 images = images[..., :3] * images[..., -1:] + (1.0 - images[..., -1:])
+
+        if cfg.dataset.type.lower() == "face":
+            images, poses, render_poses, hwf, i_split = load_nerface_data(
+                cfg.dataset.basedir,
+                half_res=cfg.dataset.half_res,
+                testskip=cfg.dataset.testskip,
+            )
+
+            # show_dirs(poses, cfg)
+
+            i_train, i_val, i_test = i_split
+            H, W, focal = hwf
+            H, W = int(H), int(W)
+            hwf = [H, W, focal]
+            if cfg.nerf.train.white_background:
+                images = images[..., :3] * images[..., -1:] + (1.0 - images[..., -1:])
+
+
         elif cfg.dataset.type.lower() == "llff":
             images, poses, bds, render_poses, i_test = load_llff_data(
                 cfg.dataset.basedir, factor=cfg.dataset.downsample_factor
@@ -219,7 +238,11 @@ def main():
             img_idx = np.random.choice(i_train)
             img_target = images[img_idx].to(device)
             pose_target = poses[img_idx, :3, :4].to(device)
-            ray_origins, ray_directions = get_ray_bundle(H, W, focal, pose_target)
+            
+            if cfg.dataset.type.lower() == "face":
+                ray_origins, ray_directions = get_ray_bundle_nerface(H, W, focal, pose_target)
+            else:
+                ray_origins, ray_directions = get_ray_bundle(H, W, focal, pose_target)
             coords = torch.stack(
                 meshgrid_xy(torch.arange(H).to(device), torch.arange(W).to(device)),
                 dim=-1,
