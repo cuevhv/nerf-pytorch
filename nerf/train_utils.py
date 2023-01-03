@@ -40,6 +40,7 @@ def predict_and_render_radiance(
     encode_position_fn=None,
     encode_direction_fn=None,
     expressions=None,
+    background_prior=None,
 ):
     # TESTED
     num_rays = ray_batch.shape[0]
@@ -82,6 +83,10 @@ def predict_and_render_radiance(
         encode_direction_fn,
         expressions=expressions,
     )
+    if background_prior is not None:
+        # make the last sample of the ray be equal to the background
+        # NOTE: is this shperical?
+        radiance_field[:, -1, :3] = background_prior
 
     (
         rgb_coarse,
@@ -95,6 +100,7 @@ def predict_and_render_radiance(
         rd,
         radiance_field_noise_std=getattr(options.nerf, mode).radiance_field_noise_std,
         white_background=getattr(options.nerf, mode).white_background,
+        background_prior=background_prior,
     )
 
     rgb_fine, disp_fine, acc_fine = None, None, None
@@ -123,7 +129,13 @@ def predict_and_render_radiance(
             encode_direction_fn,
             expressions=expressions,
         )
-        rgb_fine, disp_fine, acc_fine, _, _ = volume_render_radiance_field(
+
+        if background_prior is not None:
+            # make the last sample of the ray be equal to the background
+            # NOTE: is this shperical?
+            radiance_field[:, -1, :3] = background_prior
+
+        rgb_fine, disp_fine, acc_fine, weights, _ = volume_render_radiance_field(
             radiance_field,
             z_vals,
             rd,
@@ -131,9 +143,10 @@ def predict_and_render_radiance(
                 options.nerf, mode
             ).radiance_field_noise_std,
             white_background=getattr(options.nerf, mode).white_background,
+            background_prior=background_prior,
         )
 
-    return rgb_coarse, disp_coarse, acc_coarse, rgb_fine, disp_fine, acc_fine
+    return rgb_coarse, disp_coarse, acc_coarse, rgb_fine, disp_fine, acc_fine, weights[:, -1] # background weight
 
 
 def run_one_iter_of_nerf(
@@ -148,7 +161,8 @@ def run_one_iter_of_nerf(
     mode="train",
     encode_position_fn=None,
     encode_direction_fn=None,
-    expressions=None
+    expressions=None,
+    background_prior=None
 ):
     viewdirs = None
     if options.nerf.use_viewdirs:
@@ -164,6 +178,7 @@ def run_one_iter_of_nerf(
     ]
     if model_fine:
         restore_shapes += restore_shapes
+        restore_shapes += [ray_directions.shape[:-1]] # to return last weight value (background)
     if options.dataset.no_ndc is False:
         ro, rd = ndc_rays(height, width, focal_length, 1.0, ray_origins, ray_directions)
         ro = ro.view((-1, 3))
@@ -178,6 +193,8 @@ def run_one_iter_of_nerf(
         rays = torch.cat((rays, viewdirs), dim=-1)
 
     batches = get_minibatches(rays, chunksize=getattr(options.nerf, mode).chunksize)
+    background_prior = get_minibatches(background_prior, chunksize=getattr(options.nerf, mode).chunksize) if\
+        background_prior is not None else background_prior
     pred = [
         predict_and_render_radiance(
             batch,
@@ -187,9 +204,11 @@ def run_one_iter_of_nerf(
             encode_position_fn=encode_position_fn,
             encode_direction_fn=encode_direction_fn,
             expressions=expressions,
+            background_prior=background_prior[i] if background_prior is not None else background_prior
         )
-        for batch in batches
+        for i, batch in enumerate(batches)
     ]
+
     synthesized_images = list(zip(*pred))
     synthesized_images = [
         torch.cat(image, dim=0) if image[0] is not None else (None)
@@ -209,5 +228,4 @@ def run_one_iter_of_nerf(
             # If the fine network is not used, rgb_fine, disp_fine, acc_fine are
             # set to None.
             return tuple(synthesized_images + [None, None, None])
-
     return tuple(synthesized_images)

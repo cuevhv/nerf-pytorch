@@ -9,6 +9,7 @@ def volume_render_radiance_field(
     ray_directions,
     radiance_field_noise_std=0.0,
     white_background=False,
+    background_prior=None,
 ):
     # TESTED
     one_e_10 = torch.tensor(
@@ -23,7 +24,14 @@ def volume_render_radiance_field(
     )
     dists = dists * ray_directions[..., None, :].norm(p=2, dim=-1)
 
-    rgb = torch.sigmoid(radiance_field[..., :3])
+    if background_prior is not None:
+        # We ignore the last sample which is be replaced by the fixed background value
+        # radiance_field[:, -1, :3] = background_prior
+        rgb = torch.sigmoid(radiance_field[:, :-1, :3])
+        rgb = torch.cat((rgb, radiance_field[:, -1, :3].unsqueeze(1)), dim=1)
+    else:
+        rgb = torch.sigmoid(radiance_field[..., :3])
+    
     noise = 0.0
     if radiance_field_noise_std > 0.0:
         noise = (

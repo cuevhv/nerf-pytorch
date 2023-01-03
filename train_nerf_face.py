@@ -7,6 +7,7 @@ import numpy as np
 import torch
 import torchvision
 import yaml
+from PIL import Image
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm, trange
 
@@ -167,6 +168,21 @@ def main():
         )
         model_fine.to(device)
 
+
+    if cfg.dataset.fix_background:
+        # based on nerface https://github.com/gafniguy/4D-Facial-Avatars/blob/989be64216df754a4a34f8f53d7a71af130b57d5/nerface_code/nerf-pytorch/train_transformed_rays.py#L160
+        print("loading gt background to condition on")
+        background_img = Image.open(os.path.join(cfg.dataset.basedir,'bg','00050.png'))
+        background_img.thumbnail((H,W))
+        background_img = torch.from_numpy(np.array(background_img).astype(np.float32)).to(device)
+        background_img = background_img/255
+        print("bg shape", background_img.shape)
+        print("should be ", images[i_train][0].shape)
+        assert background_img.shape == images[i_train][0].shape
+    else:
+        background_img = None
+
+
     # Initialize optimizer.
     trainable_parameters = list(model_coarse.parameters())
     if model_fine is not None:
@@ -205,6 +221,7 @@ def main():
 
         rgb_coarse, rgb_fine = None, None
         target_ray_values = None
+        background_ray_values = None
         if USE_CACHED_DATASET:
             datafile = np.random.choice(train_paths)
             cache_dict = torch.load(datafile)
@@ -226,7 +243,7 @@ def main():
             target_ray_values = target_ray_values[select_inds].to(device)
             # ray_bundle = torch.stack([ray_origins, ray_directions], dim=0).to(device)
 
-            rgb_coarse, _, _, rgb_fine, _, _ = run_one_iter_of_nerf(
+            rgb_coarse, _, _, rgb_fine, _, _, _ = run_one_iter_of_nerf(
                 cache_dict["height"],
                 cache_dict["width"],
                 cache_dict["focal_length"],
@@ -267,9 +284,10 @@ def main():
             ray_directions = ray_directions[select_inds[:, 0], select_inds[:, 1], :]
             # batch_rays = torch.stack([ray_origins, ray_directions], dim=0)
             target_s = img_target[select_inds[:, 0], select_inds[:, 1], :]
+            background_ray_values = background_img[select_inds[:, 0], select_inds[:, 1], :] if cfg.dataset.fix_background else None
 
             then = time.time()
-            rgb_coarse, _, _, rgb_fine, _, _ = run_one_iter_of_nerf(
+            rgb_coarse, _, _, rgb_fine, _, _, weights_background_sample = run_one_iter_of_nerf(
                 H,
                 W,
                 focal,
@@ -282,6 +300,7 @@ def main():
                 encode_position_fn=encode_position_fn,
                 encode_direction_fn=encode_direction_fn,
                 expressions=expressions_target,
+                background_prior=background_ray_values,
             )
             target_ray_values = target_s
 
@@ -345,7 +364,7 @@ def main():
                 if USE_CACHED_DATASET:
                     datafile = np.random.choice(validation_paths)
                     cache_dict = torch.load(datafile)
-                    rgb_coarse, _, _, rgb_fine, _, _ = run_one_iter_of_nerf(
+                    rgb_coarse, _, _, rgb_fine, _, _, _ = run_one_iter_of_nerf(
                         cache_dict["height"],
                         cache_dict["width"],
                         cache_dict["focal_length"],
@@ -374,7 +393,7 @@ def main():
                     else:
                         ray_origins, ray_directions = get_ray_bundle(H, W, focal, pose_target)
 
-                    rgb_coarse, _, _, rgb_fine, _, _ = run_one_iter_of_nerf(
+                    rgb_coarse, _, _, rgb_fine, _, _ ,weights_background_sample = run_one_iter_of_nerf(
                         H,
                         W,
                         focal,
@@ -386,7 +405,9 @@ def main():
                         mode="validation",
                         encode_position_fn=encode_position_fn,
                         encode_direction_fn=encode_direction_fn,
-                        expressions=expressions_target
+                        expressions=expressions_target,
+                        # send all the background to generate the test image
+                        background_prior=background_img.view(-1, 3) if cfg.dataset.fix_background else None,
                     )
                     target_ray_values = img_target
                 coarse_loss = img2mse(rgb_coarse[..., :3], target_ray_values[..., :3])
@@ -414,6 +435,13 @@ def main():
                     cast_to_image(target_ray_values[..., :3]),
                     i,
                 )
+                if cfg.dataset.fix_background:
+                    writer.add_image(
+                        "validation/background", cast_to_image(background_img[..., :3]), i)
+                    writer.add_image(
+                        "validation/weights", (weights_background_sample.detach().cpu().numpy()), i, dataformats='HW')
+
+
                 tqdm.write(
                     "Validation loss: "
                     + str(loss.item())
