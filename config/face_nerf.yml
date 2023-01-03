@@ -37,7 +37,7 @@ dataset:
   # Far clip plane (clip all depth values farther than this threshold).
   far: 6
   # use expression
-  use_expression: False
+  use_expression: True
 
 # Model parameters.
 models:
@@ -49,7 +49,7 @@ models:
     num_layers: 8
     # Number of hidden units in each layer of the MLP (multi-layer
     # perceptron).
-    hidden_size: 128
+    hidden_size: 256 #128
     # Add a skip connection once in a while. Note: This parameter
     # won't take affect unless num_layers > skip_connect_every.
     skip_connect_every: 3
@@ -80,7 +80,7 @@ models:
     num_layers: 8
     # Number of hidden units in each layer of the MLP (multi-layer
     # perceptron).
-    hidden_size: 128
+    hidden_size: 256 #128
     # Add a skip connection once in a while. Note: This parameter
     # won't take affect unless num_layers > skip_connect_every.
     skip_connect_every: 3
@@ -109,7 +109,7 @@ optimizer:
   # Name of the torch.optim class used for optimization.
   type: Adam
   # Learning rate.
-  lr: 5.0E-3
+  lr: 5.0E-4
  
 # Learning rate schedule.
 scheduler:
@@ -130,7 +130,7 @@ nerf:
   train:
     # Number of random rays to retain from each image.
     # These sampled rays are used for training, and the others are discarded.
-    num_random_rays: 1024  # 32 * 32 * 4
+    num_random_rays: 2048  # 1024  # 32 * 32 * 4
     # Size of each chunk (rays are batched into "chunks" and passed through
     # the network)
     chunksize: 4096  # 131072  # 1024 * 32
@@ -144,7 +144,7 @@ nerf:
     white_background: False
     # Standard deviation of noise to be added to the radiance field when
     # performing volume rendering.
-    radiance_field_noise_std: 0.2
+    radiance_field_noise_std: 0.1
     # Sample linearly in disparity space, as opposed to in depth space.
     lindisp: False
   # Validation-specific parameters.
