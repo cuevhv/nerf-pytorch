@@ -33,11 +33,13 @@ dataset:
   # synthetic (Blender) datasets.
   no_ndc: True
   # Near clip plane (clip all depth values closer than this threshold).
-  near: 2
+  near: .2
   # Far clip plane (clip all depth values farther than this threshold).
-  far: 6
+  far: .8
   # use expression
   use_expression: True
+  # fix background
+  fix_background: True
 
 # Model parameters.
 models:
@@ -49,7 +51,7 @@ models:
     num_layers: 8
     # Number of hidden units in each layer of the MLP (multi-layer
     # perceptron).
-    hidden_size: 256 #128
+    hidden_size: 128 #256 #128
     # Add a skip connection once in a while. Note: This parameter
     # won't take affect unless num_layers > skip_connect_every.
     skip_connect_every: 3
@@ -80,7 +82,7 @@ models:
     num_layers: 8
     # Number of hidden units in each layer of the MLP (multi-layer
     # perceptron).
-    hidden_size: 256 #128
+    hidden_size: 128 #256 #128
     # Add a skip connection once in a while. Note: This parameter
     # won't take affect unless num_layers > skip_connect_every.
     skip_connect_every: 3
