@@ -1,7 +1,7 @@
 # Parameters to setup experiment.
 experiment:
   # Unique experiment identifier
-  id: face-simple
+  id: face-small_no-expression
   # Experiment logs will be stored at "logdir"/"id"
   logdir: logs
   # Seed for random number generators (for repeatability).
@@ -37,9 +37,11 @@ dataset:
   # Far clip plane (clip all depth values farther than this threshold).
   far: .8
   # use expression
-  use_expression: True
+  use_expression: False
   # fix background
   fix_background: True
+  # use landmarks3d
+  use_landmarks3d: True
 
 # Model parameters.
 models:
