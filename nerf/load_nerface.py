@@ -38,7 +38,7 @@ def pose_spherical(theta, phi, radius):
 
 
 def load_nerface_data(basedir, half_res=False, testskip=1, debug=False,
-                      load_expressions=True, load_bbox=True):
+                      load_expressions=True, load_bbox=True, load_landmarks3d=True):
     """ based on 
     https://github.com/gafniguy/4D-Facial-Avatars/blob/977606261b8d7e551dd455d66cd187d0d23c5a75/nerface_code/nerf-pytorch/nerf/load_flame.py
     """
@@ -61,6 +61,7 @@ def load_nerface_data(basedir, half_res=False, testskip=1, debug=False,
         poses = []
         expressions = []
         bboxs = []
+        landmarks3d = []
         if s == "train" or testskip == 0:
             skip = 1
         else:
@@ -69,7 +70,7 @@ def load_nerface_data(basedir, half_res=False, testskip=1, debug=False,
         for i, frame in tqdm(enumerate(meta["frames"][::skip])):
             # if i > 100: break
             fname = os.path.join(basedir, frame["file_path"] + ".png")
-            imgs.append(imageio.imread(fname))
+            imgs.append(np.asarray(imageio.imread(fname)))
             poses.append(np.array(frame["transform_matrix"]))
 
             if load_expressions:
@@ -81,25 +82,38 @@ def load_nerface_data(basedir, half_res=False, testskip=1, debug=False,
             if load_bbox:
                 bboxs.append(np.array([frame["bbox"][1], frame["bbox"][3], frame["bbox"][0], frame["bbox"][2]]))
             else:
-                bboxs.append(np.array([0.0, 1.0, 0.0, 1.0])) 
+                bboxs.append(np.array([0.0, 1.0, 0.0, 1.0]))
+
+            if load_landmarks3d:
+                landmarks3d.append(np.array(frame["landmarks3d"]))
+            else:
+                landmarks3d.append(None)
 
         poses = np.array(poses).astype(np.float32)
         expressions = np.array(expressions).astype(np.float32)
         bboxs = np.array(bboxs).astype(np.float32)
+        landmarks3d = np.array(landmarks3d).astype(np.float32)
 
-        imgs = (np.array(imgs) / 255.0).astype(np.float32)
+
+        imgs = np.stack(imgs).astype(np.float32) / 255.0 
+        # imgs = (np.array(imgs) / 255.0).astype(np.float32)
         poses = np.array(poses).astype(np.float32)
         counts.append(counts[-1] + imgs.shape[0])
         all_imgs.append(imgs)
         all_poses.append(poses)
         all_expressions.append(expressions)
         all_bboxs.append(bboxs)
+        all_landmarks3d.append(landmarks3d)
+
+        del imgs, poses, expressions, bboxs, landmarks3d
 
     i_split = [np.arange(counts[i], counts[i + 1]) for i in range(3)]
 
     imgs = np.concatenate(all_imgs, 0)
     poses = np.concatenate(all_poses, 0)
     expressions = np.concatenate(all_expressions, 0)
+    bboxs = np.concatenate(all_bboxs, 0)
+    landmarks3d = np.concatenate(all_landmarks3d, 0)
 
     H, W = imgs[0].shape[:2]
     camera_angle_x = float(meta["camera_angle_x"])
@@ -147,15 +161,17 @@ def load_nerface_data(basedir, half_res=False, testskip=1, debug=False,
         imgs = torch.stack(imgs, 0)
     
     else:
-        imgs = [
-            torch.from_numpy(imgs[i]
-            )
-            for i in range(imgs.shape[0])
-        ]
-        imgs = torch.stack(imgs, 0)
+        # imgs = [
+        #     torch.from_numpy(imgs[i]
+        #     )
+        #     for i in range(imgs.shape[0])
+        # ]
+        # imgs = torch.stack(imgs, 0)
+        imgs = torch.from_numpy(imgs)
 
     poses = torch.from_numpy(poses)
-    expressions = torch.from_numpy(expressions)
+    expressions = torch.from_numpy(expressions) if load_expressions else None
+    landmarks3d = torch.from_numpy(landmarks3d) if load_landmarks3d else None
     bboxs[:,0:2] *= H  # top, left
     bboxs[:,2:4] *= W  # right, bottom
     bboxs = np.floor(bboxs)
@@ -163,4 +179,4 @@ def load_nerface_data(basedir, half_res=False, testskip=1, debug=False,
 
     print("finish loading")
 
-    return imgs, poses, render_poses, [H, W, intrinsics], i_split, expressions
+    return imgs, poses, render_poses, [H, W, intrinsics], i_split, expressions, landmarks3d

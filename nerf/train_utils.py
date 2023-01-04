@@ -4,9 +4,17 @@ from .nerf_helpers import get_minibatches, ndc_rays
 from .nerf_helpers import sample_pdf_2 as sample_pdf
 from .volume_rendering_utils import volume_render_radiance_field
 
+def get_pts_landmarks3d_dist(pts, landmarks3d):
+    """pts: [N, 3] N is number of sampled piints of the whole image, not only a ray
+       landmarks3d: [K, 3] K is the number of vertices or landmarks in the face mesh
+    """
+    dist = pts[:, None] - landmarks3d[None, :]
+    return torch.linalg.norm(dist, axis=-1)  # [N, K, 3] = N, K
+    #return dist.reshape(pts.shape[0], -1)  # [N, K, 3] -> [N, K*3]
+
 
 def run_network(network_fn, pts, ray_batch, chunksize, embed_fn, embeddirs_fn,
-                expressions=None,):
+                expressions=None, landmarks3d=None):
 
     pts_flat = pts.reshape((-1, pts.shape[-1]))
     embedded = embed_fn(pts_flat)
@@ -16,6 +24,11 @@ def run_network(network_fn, pts, ray_batch, chunksize, embed_fn, embeddirs_fn,
         input_dirs_flat = input_dirs.reshape((-1, input_dirs.shape[-1]))
         embedded_dirs = embeddirs_fn(input_dirs_flat)
         embedded = torch.cat((embedded, embedded_dirs), dim=-1)
+    
+    if landmarks3d is not None:
+        # Get how for a sample point is from the K landmarks
+        dist_pts_lndmks3d = get_pts_landmarks3d_dist(pts_flat, landmarks3d)
+        embedded = torch.cat((dist_pts_lndmks3d, embedded), dim=-1)
 
     batches = get_minibatches(embedded, chunksize=chunksize)
 
@@ -41,6 +54,7 @@ def predict_and_render_radiance(
     encode_direction_fn=None,
     expressions=None,
     background_prior=None,
+    landmarks3d=None,
 ):
     # TESTED
     num_rays = ray_batch.shape[0]
@@ -74,6 +88,7 @@ def predict_and_render_radiance(
     # pts -> (num_rays, N_samples, 3)
     pts = ro[..., None, :] + rd[..., None, :] * z_vals[..., :, None]
 
+    # NOTE: here are the points that are sampled
     radiance_field = run_network(
         model_coarse,
         pts,
@@ -82,6 +97,7 @@ def predict_and_render_radiance(
         encode_position_fn,
         encode_direction_fn,
         expressions=expressions,
+        landmarks3d=landmarks3d,
     )
     if background_prior is not None:
         # make the last sample of the ray be equal to the background
@@ -128,6 +144,7 @@ def predict_and_render_radiance(
             encode_position_fn,
             encode_direction_fn,
             expressions=expressions,
+            landmarks3d=landmarks3d,
         )
 
         if background_prior is not None:
@@ -162,7 +179,8 @@ def run_one_iter_of_nerf(
     encode_position_fn=None,
     encode_direction_fn=None,
     expressions=None,
-    background_prior=None
+    background_prior=None,
+    landmarks3d=None,
 ):
     viewdirs = None
     if options.nerf.use_viewdirs:
@@ -204,7 +222,8 @@ def run_one_iter_of_nerf(
             encode_position_fn=encode_position_fn,
             encode_direction_fn=encode_direction_fn,
             expressions=expressions,
-            background_prior=background_prior[i] if background_prior is not None else background_prior
+            background_prior=background_prior[i] if background_prior is not None else background_prior,
+            landmarks3d=landmarks3d if landmarks3d is not None else None,
         )
         for i, batch in enumerate(batches)
     ]

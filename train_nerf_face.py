@@ -73,12 +73,14 @@ def main():
                 images = images[..., :3] * images[..., -1:] + (1.0 - images[..., -1:])
 
         if cfg.dataset.type.lower() == "face":
-            images, poses, render_poses, hwf, i_split, expressions = load_nerface_data(
+            images, poses, render_poses, hwf, i_split, expressions, landmarks3d = load_nerface_data(
                 cfg.dataset.basedir,
                 half_res=cfg.dataset.half_res,
                 testskip=cfg.dataset.testskip,
-                load_expressions=cfg.dataset.use_expression
+                load_expressions=cfg.dataset.use_expression,
+                load_landmarks3d=cfg.dataset.use_landmarks3d,
             )
+
             if not cfg.dataset.use_expression:
                 expressions = None
 
@@ -151,6 +153,7 @@ def main():
         num_layers=cfg.models.coarse.num_layers,
         hidden_size=cfg.models.coarse.hidden_size,
         use_expression=cfg.dataset.use_expression,
+        use_landmarks3d=cfg.dataset.use_landmarks3d,
     )
     model_coarse.to(device)
     # If a fine-resolution model is specified, initialize it.
@@ -165,6 +168,7 @@ def main():
             num_layers=cfg.models.coarse.num_layers,
             hidden_size=cfg.models.coarse.hidden_size,
             use_expression=cfg.dataset.use_expression,
+            use_landmarks3d=cfg.dataset.use_landmarks3d,
         )
         model_fine.to(device)
 
@@ -261,12 +265,18 @@ def main():
             img_idx = np.random.choice(i_train)
             img_target = images[img_idx].to(device)
             pose_target = poses[img_idx, :3, :4].to(device)
+            
 
             if expressions is not None:
                 expressions_target = expressions[img_idx].to(device)
             else:
                 expressions_target = None
-            
+
+            if landmarks3d is not None:
+                landmarks3d_target = landmarks3d[img_idx].to(device)
+            else:
+                landmarks3d_target = None
+
             if cfg.dataset.type.lower() == "face":
                 ray_origins, ray_directions = get_ray_bundle_nerface(H, W, focal, pose_target)
             else:
@@ -282,6 +292,7 @@ def main():
             select_inds = coords[select_inds]
             ray_origins = ray_origins[select_inds[:, 0], select_inds[:, 1], :]
             ray_directions = ray_directions[select_inds[:, 0], select_inds[:, 1], :]
+            
             # batch_rays = torch.stack([ray_origins, ray_directions], dim=0)
             target_s = img_target[select_inds[:, 0], select_inds[:, 1], :]
             background_ray_values = background_img[select_inds[:, 0], select_inds[:, 1], :] if cfg.dataset.fix_background else None
@@ -301,6 +312,7 @@ def main():
                 encode_direction_fn=encode_direction_fn,
                 expressions=expressions_target,
                 background_prior=background_ray_values,
+                landmarks3d=landmarks3d_target,
             )
             target_ray_values = target_s
 
@@ -383,10 +395,16 @@ def main():
                     img_idx = np.random.choice(i_val)
                     img_target = images[img_idx].to(device)
                     pose_target = poses[img_idx, :3, :4].to(device)
+                    
                     if expressions is not None:
                         expressions_target = expressions[img_idx].to(device)
                     else:
                         expressions_target = None
+
+                    if landmarks3d is not None:
+                        landmarks3d_target = landmarks3d[img_idx].to(device)
+                    else:
+                        landmarks3d_target = None
 
                     if cfg.dataset.type.lower() == "face":
                         ray_origins, ray_directions = get_ray_bundle_nerface(H, W, focal, pose_target)
@@ -408,6 +426,7 @@ def main():
                         expressions=expressions_target,
                         # send all the background to generate the test image
                         background_prior=background_img.view(-1, 3) if cfg.dataset.fix_background else None,
+                        landmarks3d=landmarks3d_target,
                     )
                     target_ray_values = img_target
                 coarse_loss = img2mse(rgb_coarse[..., :3], target_ray_values[..., :3])

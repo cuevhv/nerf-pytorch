@@ -268,28 +268,35 @@ class FlexibleNeRFaceModel(torch.nn.Module):
         include_input_xyz=True,
         include_input_dir=True,
         use_viewdirs=True,
-        use_expression=True
+        use_expression=True,
+        use_landmarks3d=True,
     ):
         super(FlexibleNeRFaceModel, self).__init__()
 
         include_input_xyz = 3 if include_input_xyz else 0
         include_input_dir = 3 if include_input_dir else 0
-        # TODO: change the value to depend on cfg
+        
+        # TODO: change expression and lanrmsrks3d value to depend on cfg
         include_expresion = 50 if use_expression else 0
+        include_landmarks3d = 68 if use_landmarks3d else 0
+
+
         self.dim_xyz = include_input_xyz + 2 * 3 * num_encoding_fn_xyz
         self.dim_dir = include_input_dir + 2 * 3 * num_encoding_fn_dir
         self.dim_expression = include_expresion
+        self.dim_landmarks3d = include_landmarks3d
 
         self.skip_connect_every = skip_connect_every
+        self.use_landmarks3d = use_landmarks3d
         if not use_viewdirs:
             self.dim_dir = 0
 
-        self.layer1 = torch.nn.Linear(self.dim_xyz+self.dim_expression, hidden_size)
+        self.layer1 = torch.nn.Linear(self.dim_landmarks3d+self.dim_xyz+self.dim_expression, hidden_size)
         self.layers_xyz = torch.nn.ModuleList()
         for i in range(num_layers - 1):
             if i % self.skip_connect_every == 0 and i > 0 and i != num_layers - 1:
                 self.layers_xyz.append(
-                    torch.nn.Linear(self.dim_xyz+self.dim_expression + hidden_size, hidden_size)
+                    torch.nn.Linear(self.dim_landmarks3d+self.dim_xyz+self.dim_expression + hidden_size, hidden_size)
                 )
             else:
                 self.layers_xyz.append(torch.nn.Linear(hidden_size, hidden_size))
@@ -311,7 +318,9 @@ class FlexibleNeRFaceModel(torch.nn.Module):
         self.relu = torch.nn.functional.relu
 
     def forward(self, x, expression=None):
-        if self.use_viewdirs:
+        if self.use_landmarks3d:
+            xyz, dirs = x[..., : self.dim_landmarks3d+self.dim_xyz], x[..., self.dim_landmarks3d+self.dim_xyz :]
+        elif self.use_viewdirs:
             xyz, dirs = x[..., : self.dim_xyz], x[..., self.dim_xyz :]
         else:
             xyz = x[..., : self.dim_xyz]
