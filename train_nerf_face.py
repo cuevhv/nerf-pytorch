@@ -18,6 +18,12 @@ from nerf import (CfgNode, get_embedding_function, get_ray_bundle, img2mse,
 
 from utils.viewer import show_dirs
 
+def get_prob_map_bbox(bbox, H, W, p=0.9):
+    probs = np.zeros((H,W))
+    probs.fill(1-p)  # assigning low probability to all pixels
+    probs[bbox[0]:bbox[1],bbox[2]:bbox[3]] = p  # assigning high prob to pixels inside the bbox
+    probs = (1/probs.sum()) * probs  # make all the prob pixels sum to 1
+    return probs
 
 def main():
 
@@ -73,7 +79,7 @@ def main():
                 images = images[..., :3] * images[..., -1:] + (1.0 - images[..., -1:])
 
         if cfg.dataset.type.lower() == "face":
-            images, poses, render_poses, hwf, i_split, expressions, landmarks3d = load_nerface_data(
+            images, poses, render_poses, hwf, i_split, expressions, landmarks3d, bboxs = load_nerface_data(
                 cfg.dataset.basedir,
                 half_res=cfg.dataset.half_res,
                 testskip=cfg.dataset.testskip,
@@ -215,6 +221,16 @@ def main():
         optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
         start_iter = checkpoint["iter"]
 
+    # Prepare importance sampling maps
+    # NOTE: DO WE HAVE TO PRECOMPUTE THEM? I THINK NO
+    # ray_importance_sampling_maps = []
+    # print("computing boundix boxes probability maps")
+    # for i in i_train:
+    #     bbox = bboxs[i]
+    #     probs = get_prob_map_bbox(bbox, H, W, p=0.9)
+    #     ray_importance_sampling_maps.append(probs.reshape(-1))
+        
+
     # # TODO: Prepare raybatch tensor if batching random rays
 
     for i in trange(start_iter, cfg.experiment.train_iters):
@@ -286,8 +302,16 @@ def main():
                 dim=-1,
             )
             coords = coords.reshape((-1, 2))
+
+            # Compute sampling probability map
+            if cfg.dataset.sample_inside_bbox:
+                probs = get_prob_map_bbox(bboxs[img_idx], H, W, p=0.9).reshape(-1)
+            else:
+                probs = None
+
             select_inds = np.random.choice(
-                coords.shape[0], size=(cfg.nerf.train.num_random_rays), replace=False
+                coords.shape[0], size=(cfg.nerf.train.num_random_rays), replace=False, 
+                p=probs, # Sample more inside the bbox
             )
             select_inds = coords[select_inds]
             ray_origins = ray_origins[select_inds[:, 0], select_inds[:, 1], :]
