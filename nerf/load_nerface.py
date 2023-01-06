@@ -37,8 +37,21 @@ def pose_spherical(theta, phi, radius):
     return c2w
 
 
+def rescale_bbox(bbox, scale=1.):
+    """bbox: [top, bottom, left, right]
+    """
+    center_height = (bbox[0]+bbox[1])/2
+    center_width = (bbox[2]+bbox[3])/2
+    bbox[:2] = (bbox[:2]-center_height) * scale  # top bottom
+    bbox[2:] = (bbox[2:]-center_width) * scale  # left right
+    bbox[:2] += center_height
+    bbox[2:] += center_width
+    bbox = np.clip(bbox, a_min=0, a_max=1)  # make sure it's within the image boundary 0-1
+    return bbox
+
+
 def load_nerface_data(basedir, half_res=False, testskip=1, debug=False,
-                      load_expressions=True, load_bbox=True, load_landmarks3d=True):
+                      load_expressions=True, load_bbox=True, load_landmarks3d=True, bbox_scale=2.):
     """ based on 
     https://github.com/gafniguy/4D-Facial-Avatars/blob/977606261b8d7e551dd455d66cd187d0d23c5a75/nerface_code/nerf-pytorch/nerf/load_flame.py
     """
@@ -68,7 +81,7 @@ def load_nerface_data(basedir, half_res=False, testskip=1, debug=False,
             skip = testskip
         print(f"loading {s}")
         for i, frame in tqdm(enumerate(meta["frames"][::skip])):
-            # if i > 100: break
+            # if i > 200: break
             fname = os.path.join(basedir, frame["file_path"] + ".png")
             imgs.append(np.asarray(imageio.imread(fname)))
             poses.append(np.array(frame["transform_matrix"]))
@@ -78,9 +91,12 @@ def load_nerface_data(basedir, half_res=False, testskip=1, debug=False,
             else:
                 expressions.append(np.zeros(50)) # we have 50 expressions from DECA
             
-            # bbox deca [left, top, right, bottom] -> [top, bottom, left, right] 
+            # bbox deca [left, top, right, bottom] -> [top, bottom, left, right] beeter to handle
             if load_bbox:
-                bboxs.append(np.array([frame["bbox"][1], frame["bbox"][3], frame["bbox"][0], frame["bbox"][2]]))
+                bbox = np.array([frame["bbox"][1], frame["bbox"][3], frame["bbox"][0], frame["bbox"][2]])
+                # We increase the scale of bbox as deca face detector bbox is around the face and not the head
+                bbox = rescale_bbox(bbox, scale=bbox_scale)
+                bboxs.append(bbox)
             else:
                 bboxs.append(np.array([0.0, 1.0, 0.0, 1.0]))
 
@@ -179,4 +195,4 @@ def load_nerface_data(basedir, half_res=False, testskip=1, debug=False,
 
     print("finish loading")
 
-    return imgs, poses, render_poses, [H, W, intrinsics], i_split, expressions, landmarks3d
+    return imgs, poses, render_poses, [H, W, intrinsics], i_split, expressions, landmarks3d, bboxs
