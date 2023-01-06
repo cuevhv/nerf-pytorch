@@ -260,16 +260,18 @@ class FlexibleNeRFModel(torch.nn.Module):
 class FlexibleNeRFaceModel(torch.nn.Module):
     def __init__(
         self,
-        num_layers=4,
-        hidden_size=128,
-        skip_connect_every=4,
-        num_encoding_fn_xyz=6,
-        num_encoding_fn_dir=4,
-        include_input_xyz=True,
-        include_input_dir=True,
-        use_viewdirs=True,
-        use_expression=True,
-        use_landmarks3d=True,
+        num_layers: int = 4,
+        hidden_size: int = 128,
+        skip_connect_every: int = 4,
+        num_encoding_fn_xyz: int = 6,
+        num_encoding_fn_dir: int = 4,
+        include_input_xyz: bool = True,
+        include_input_dir: bool = True,
+        use_viewdirs: bool = True,
+        use_expression: bool = True,
+        use_landmarks3d: bool = True,
+        use_appearance_code: bool =True,
+        num_train_images: int = 0,
     ):
         super(FlexibleNeRFaceModel, self).__init__()
 
