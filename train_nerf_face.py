@@ -416,55 +416,70 @@ def main():
                     )
                     target_ray_values = cache_dict["target"].to(device)
                 else:
-                    img_idx = np.random.choice(i_val)
-                    img_target = images[img_idx].to(device)
-                    pose_target = poses[img_idx, :3, :4].to(device)
-                    
-                    if expressions is not None:
-                        expressions_target = expressions[img_idx].to(device)
-                    else:
-                        expressions_target = None
+                    loss, total_coarse_loss, total_fine_loss = 0., 0., 0. 
+                    # img_idx = np.random.choice(i_val)
+                    for img_idx in range(1): #i_val: Not worthy to test on all the 5 val images
+                        img_idx = np.random.choice(i_val)
+                        img_target = images[img_idx].to(device)
+                        pose_target = poses[img_idx, :3, :4].to(device)
+                        
+                        if expressions is not None:
+                            expressions_target = expressions[img_idx].to(device)
+                        else:
+                            expressions_target = None
 
-                    if landmarks3d is not None:
-                        landmarks3d_target = landmarks3d[img_idx].to(device)
-                    else:
-                        landmarks3d_target = None
+                        if landmarks3d is not None:
+                            landmarks3d_target = landmarks3d[img_idx].to(device)
+                        else:
+                            landmarks3d_target = None
 
-                    if cfg.dataset.type.lower() == "face":
-                        ray_origins, ray_directions = get_ray_bundle_nerface(H, W, focal, pose_target)
-                    else:
-                        ray_origins, ray_directions = get_ray_bundle(H, W, focal, pose_target)
+                        if cfg.dataset.type.lower() == "face":
+                            ray_origins, ray_directions = get_ray_bundle_nerface(H, W, focal, pose_target)
+                        else:
+                            ray_origins, ray_directions = get_ray_bundle(H, W, focal, pose_target)
 
-                    rgb_coarse, _, _, rgb_fine, _, _ ,weights_background_sample = run_one_iter_of_nerf(
-                        H,
-                        W,
-                        focal,
-                        model_coarse,
-                        model_fine,
-                        ray_origins,
-                        ray_directions,
-                        cfg,
-                        mode="validation",
-                        encode_position_fn=encode_position_fn,
-                        encode_direction_fn=encode_direction_fn,
-                        expressions=expressions_target,
-                        # send all the background to generate the test image
-                        background_prior=background_img.view(-1, 3) if cfg.dataset.fix_background else None,
-                        landmarks3d=landmarks3d_target,
-                    )
-                    target_ray_values = img_target
-                coarse_loss = img2mse(rgb_coarse[..., :3], target_ray_values[..., :3])
-                loss, fine_loss = 0.0, 0.0
-                if rgb_fine is not None:
-                    fine_loss = img2mse(rgb_fine[..., :3], target_ray_values[..., :3])
-                    loss = fine_loss
-                else:
-                    loss = coarse_loss
-                loss = coarse_loss + fine_loss
+                        rgb_coarse, _, _, rgb_fine, _, _ ,weights_background_sample = run_one_iter_of_nerf(
+                            H,
+                            W,
+                            focal,
+                            model_coarse,
+                            model_fine,
+                            ray_origins,
+                            ray_directions,
+                            cfg,
+                            mode="validation",
+                            encode_position_fn=encode_position_fn,
+                            encode_direction_fn=encode_direction_fn,
+                            expressions=expressions_target,
+                            # send all the background to generate the test image
+                            background_prior=background_img.view(-1, 3) if cfg.dataset.fix_background else None,
+                            landmarks3d=landmarks3d_target,
+                        )
+                        target_ray_values = img_target
+                    coarse_loss = img2mse(rgb_coarse[..., :3], target_ray_values[..., :3])
+                    # loss, fine_loss = 0.0, 0.0
+                    fine_loss = 0.0
+                    if rgb_fine is not None:
+                        fine_loss = img2mse(rgb_fine[..., :3], target_ray_values[..., :3])
+                        # loss = fine_loss
+                    # else:
+                        # loss = coarse_loss
+                    loss += coarse_loss + fine_loss
+                    total_coarse_loss += coarse_loss
+                    total_fine_loss += fine_loss
+
+                # not worthy testing on all the 5 val images, 1 is fine
+                # loss /= len(i_val)
+                # total_coarse_loss /= len(i_val) 
+                # total_fine_loss /= len(i_val)
+
                 psnr = mse2psnr(loss.item())
+                psnr_fine = mse2psnr(total_fine_loss.item())
                 writer.add_scalar("validation/loss", loss.item(), i)
-                writer.add_scalar("validation/coarse_loss", coarse_loss.item(), i)
+                writer.add_scalar("validation/coarse_loss", total_coarse_loss.item(), i)
+                writer.add_scalar("validation/fine_loss", total_fine_loss.item(), i)
                 writer.add_scalar("validataion/psnr", psnr, i)
+                writer.add_scalar("validataion/psnr_fine", psnr_fine, i)
                 writer.add_image(
                     "validation/rgb_coarse", cast_to_image(rgb_coarse[..., :3]), i
                 )
@@ -472,7 +487,7 @@ def main():
                     writer.add_image(
                         "validation/rgb_fine", cast_to_image(rgb_fine[..., :3]), i
                     )
-                    writer.add_scalar("validation/fine_loss", fine_loss.item(), i)
+                    writer.add_scalar("validation/fine_loss", total_fine_loss.item(), i)
                 writer.add_image(
                     "validation/img_target",
                     cast_to_image(target_ray_values[..., :3]),
