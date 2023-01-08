@@ -1,7 +1,7 @@
 # Parameters to setup experiment.
 experiment:
   # Unique experiment identifier
-  id: face-small_no-expression
+  id: face-small
   # Experiment logs will be stored at "logdir"/"id"
   logdir: logs
   # Seed for random number generators (for repeatability).
@@ -46,6 +46,7 @@ dataset:
   sample_inside_bbox: True
   # appearance code at for the last part of the network
   use_appearance_code: True
+  
 
 # Model parameters.
 models:
@@ -118,6 +119,8 @@ optimizer:
   type: Adam
   # Learning rate.
   lr: 5.0E-4
+  # optimize apperance code
+  appearance_code: True
  
 # Learning rate schedule.
 scheduler:
