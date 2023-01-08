@@ -160,6 +160,8 @@ def main():
         hidden_size=cfg.models.coarse.hidden_size,
         use_expression=cfg.dataset.use_expression,
         use_landmarks3d=cfg.dataset.use_landmarks3d,
+        use_appearance_code=cfg.dataset.use_appearance_code,
+        num_train_images=len(i_train),
     )
     model_coarse.to(device)
     # If a fine-resolution model is specified, initialize it.
@@ -175,6 +177,8 @@ def main():
             hidden_size=cfg.models.coarse.hidden_size,
             use_expression=cfg.dataset.use_expression,
             use_landmarks3d=cfg.dataset.use_landmarks3d,
+            use_appearance_code=cfg.dataset.use_appearance_code,
+            num_train_images=len(i_train),
         )
         model_fine.to(device)
 
@@ -337,6 +341,7 @@ def main():
                 expressions=expressions_target,
                 background_prior=background_ray_values,
                 landmarks3d=landmarks3d_target,
+                appearance_code_idx=img_idx if cfg.dataset.use_appearance_code else 0
             )
             target_ray_values = target_s
 
@@ -454,6 +459,7 @@ def main():
                             # send all the background to generate the test image
                             background_prior=background_img.view(-1, 3) if cfg.dataset.fix_background else None,
                             landmarks3d=landmarks3d_target,
+                            appearance_code_idx=0,  # it can be any from 0 to len(train_imgs) we chose 0 here
                         )
                         target_ray_values = img_target
                     coarse_loss = img2mse(rgb_coarse[..., :3], target_ray_values[..., :3])

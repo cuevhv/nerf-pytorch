@@ -272,6 +272,7 @@ class FlexibleNeRFaceModel(torch.nn.Module):
         use_landmarks3d: bool = True,
         use_appearance_code: bool =True,
         num_train_images: int = 0,
+        embedding_vector_dim: int = 16,  # based on a-pose
     ):
         super(FlexibleNeRFaceModel, self).__init__()
 
@@ -282,11 +283,18 @@ class FlexibleNeRFaceModel(torch.nn.Module):
         include_expresion = 50 if use_expression else 0
         include_landmarks3d = 68 if use_landmarks3d else 0
 
+        # add appearance code
+        self.use_appearance_code = use_appearance_code
+        if use_appearance_code:
+            self.appearance_codes = torch.nn.Embedding(num_embeddings=num_train_images, 
+                                                       embedding_dim=embedding_vector_dim)
+
 
         self.dim_xyz = include_input_xyz + 2 * 3 * num_encoding_fn_xyz
         self.dim_dir = include_input_dir + 2 * 3 * num_encoding_fn_dir
         self.dim_expression = include_expresion
-        self.dim_landmarks3d = include_landmarks3d
+        self.dim_landmarks3d = include_landmarks3d + 2 * include_landmarks3d * num_encoding_fn_dir + include_landmarks3d * 3
+        self.dim_appearance_codes = embedding_vector_dim if use_appearance_code else 0
 
         self.skip_connect_every = skip_connect_every
         self.use_landmarks3d = use_landmarks3d
@@ -308,7 +316,7 @@ class FlexibleNeRFaceModel(torch.nn.Module):
             self.layers_dir = torch.nn.ModuleList()
             # This deviates from the original paper, and follows the code release instead.
             self.layers_dir.append(
-                torch.nn.Linear(self.dim_dir + hidden_size, hidden_size // 2)
+                torch.nn.Linear(self.dim_dir + self.dim_appearance_codes + hidden_size, hidden_size // 2)
             )
 
             self.fc_alpha = torch.nn.Linear(hidden_size, 1)
@@ -319,7 +327,7 @@ class FlexibleNeRFaceModel(torch.nn.Module):
 
         self.relu = torch.nn.functional.relu
 
-    def forward(self, x, expression=None):
+    def forward(self, x, expression=None, appearance_idx=0):
         if self.use_landmarks3d:
             xyz, dirs = x[..., : self.dim_landmarks3d+self.dim_xyz], x[..., self.dim_landmarks3d+self.dim_xyz :]
         elif self.use_viewdirs:
@@ -346,6 +354,15 @@ class FlexibleNeRFaceModel(torch.nn.Module):
             feat = self.relu(self.fc_feat(x))
             alpha = self.fc_alpha(x)
             x = torch.cat((feat, dirs), dim=-1)
+
+            if self.use_appearance_code:
+                if not self.training:
+                    appearance_idx = 0  # it can be any index up to len(training_imgs)
+                appearance_idx = torch.tensor([appearance_idx]).long().to(x.device)
+                appearance = self.appearance_codes(appearance_idx)
+                appearance = appearance.repeat(xyz.shape[0], 1)
+                x = torch.cat((x, appearance), dim=1)
+                
             for l in self.layers_dir:
                 x = self.relu(l(x))
             rgb = self.fc_rgb(x)
