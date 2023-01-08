@@ -360,6 +360,16 @@ def main():
         # else:
         #     loss = coarse_loss
         loss = coarse_loss + (fine_loss if fine_loss is not None else 0.0)
+        if cfg.optimizer.appearance_code and cfg.dataset.use_appearance_code:
+            appearance_idx = torch.tensor([img_idx]).long().to(ray_origins.device)
+            embeddings_fine = model_fine.appearance_codes(appearance_idx)
+            embeddings_coarse = model_coarse.appearance_codes(appearance_idx)
+
+            # TODO: rework embeddings so it is done outside the layer 
+            loss_embed_coarse_fine = torch.mean((embeddings_coarse-embeddings_fine)**2)  # we want both embeddings be similar
+            loss_embed_l2 = torch.linalg.norm(embeddings_coarse) + torch.linalg.norm(embeddings_fine)
+            loss = loss + 0.05*loss_embed_l2 + loss_embed_coarse_fine
+
         loss.backward()
         psnr = mse2psnr(loss.item())
         optimizer.step()
@@ -387,6 +397,8 @@ def main():
         if rgb_fine is not None:
             writer.add_scalar("train/fine_loss", fine_loss.item(), i)
         writer.add_scalar("train/psnr", psnr, i)
+        if cfg.optimizer.appearance_code:
+            writer.add_scalar("train/l2_appearance_code", loss_embed_l2.item(), i)
 
         # Validation
         if (
