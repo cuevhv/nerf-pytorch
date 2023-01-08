@@ -374,7 +374,7 @@ def main():
             loss = loss_nerf
 
         loss.backward()
-        psnr = mse2psnr(loss.item())
+        psnr = mse2psnr(loss_nerf.item())
         optimizer.step()
         optimizer.zero_grad()
 
