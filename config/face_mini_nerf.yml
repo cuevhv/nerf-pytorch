@@ -37,11 +37,15 @@ dataset:
   # Far clip plane (clip all depth values farther than this threshold).
   far: .8
   # use expression
-  use_expression: False
+  use_expression: True
   # fix background
   fix_background: True
   # use landmarks3d
-  use_landmarks3d: True
+  use_landmarks3d: False
+  # sample more points inside bbox
+  sample_inside_bbox: True
+  # appearance code at for the last part of the network
+  use_appearance_code: True
 
 # Model parameters.
 models:
