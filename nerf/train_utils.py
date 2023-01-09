@@ -63,8 +63,6 @@ def predict_and_render_radiance(
     bounds = ray_batch[..., 6:8].view((-1, 1, 2))
     near, far = bounds[..., 0], bounds[..., 1]
 
-    # TODO: Use actual values for "near" and "far" (instead of 0. and 1.)
-    # when not enabling "ndc".
     t_vals = torch.linspace(
         0.0,
         1.0,

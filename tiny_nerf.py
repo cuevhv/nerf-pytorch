@@ -61,7 +61,7 @@ def compute_query_points_from_rays(
         ray_origins[..., None, :]
         + ray_directions[..., None, :] * depth_values[..., :, None]
     )
-    # TODO: Double-check that `depth_values` returned is of shape `(num_samples)`.
+
     return query_points, depth_values
 
 

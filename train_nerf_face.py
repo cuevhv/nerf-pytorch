@@ -234,9 +234,6 @@ def main():
     #     probs = get_prob_map_bbox(bbox, H, W, p=0.9)
     #     ray_importance_sampling_maps.append(probs.reshape(-1))
         
-
-    # # TODO: Prepare raybatch tensor if batching random rays
-
     for i in trange(start_iter, cfg.experiment.train_iters):
 
         model_coarse.train()
@@ -400,7 +397,7 @@ def main():
         if rgb_fine is not None:
             writer.add_scalar("train/fine_loss", fine_loss.item(), i)
         writer.add_scalar("train/psnr", psnr, i)
-        if cfg.optimizer.appearance_code:
+        if cfg.optimizer.appearance_code and cfg.dataset.use_appearance_code:
             writer.add_scalar("train/l2_appearance_code", loss_embed_l2.item(), i)
 
         # Validation

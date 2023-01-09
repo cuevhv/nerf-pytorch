@@ -163,7 +163,6 @@ def load_nerface_data(basedir, half_res=False, testskip=1, debug=False,
         return imgs, poses, render_poses, [H, W, focal], i_split
 
     if half_res:
-        # TODO: resize images using INTER_AREA (cv2)
         H = H // 2
         W = W // 2
         # focal = focal / 2.0
