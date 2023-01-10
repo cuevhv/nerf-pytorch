@@ -14,7 +14,7 @@ def get_pts_landmarks3d_dist(pts, landmarks3d):
 
 
 def run_network(network_fn, pts, ray_batch, chunksize, embed_fn, embeddirs_fn,
-                expressions=None, landmarks3d=None, appearance_code_idx=0):
+                expressions=None, landmarks3d=None, appearance_codes=None):
 
     pts_flat = pts.reshape((-1, pts.shape[-1]))
     embedded = embed_fn(pts_flat)
@@ -33,9 +33,9 @@ def run_network(network_fn, pts, ray_batch, chunksize, embed_fn, embeddirs_fn,
     batches = get_minibatches(embedded, chunksize=chunksize)
 
     if expressions is None:
-        preds = [network_fn(batch, appearance_idx=appearance_code_idx) for batch in batches]
+        preds = [network_fn(batch, appearance_codes=appearance_codes) for batch in batches]
     else:
-        preds = [network_fn(batch, expressions, appearance_idx=appearance_code_idx) for batch in batches]
+        preds = [network_fn(batch, expressions, appearance_codes=appearance_codes) for batch in batches]
     
     radiance_field = torch.cat(preds, dim=0)
     radiance_field = radiance_field.reshape(
@@ -55,7 +55,7 @@ def predict_and_render_radiance(
     expressions=None,
     background_prior=None,
     landmarks3d=None,
-    appearance_code_idx=0,
+    appearance_codes=None,
 ):
     # TESTED
     num_rays = ray_batch.shape[0]
@@ -97,7 +97,7 @@ def predict_and_render_radiance(
         encode_direction_fn,
         expressions=expressions,
         landmarks3d=landmarks3d,
-        appearance_code_idx=appearance_code_idx,
+        appearance_codes=appearance_codes,
     )
     if background_prior is not None:
         # make the last sample of the ray be equal to the background
@@ -145,7 +145,7 @@ def predict_and_render_radiance(
             encode_direction_fn,
             expressions=expressions,
             landmarks3d=landmarks3d,
-            appearance_code_idx=appearance_code_idx,
+            appearance_codes=appearance_codes,
         )
 
         if background_prior is not None:
@@ -182,7 +182,7 @@ def run_one_iter_of_nerf(
     expressions=None,
     background_prior=None,
     landmarks3d=None,
-    appearance_code_idx=0,
+    appearance_codes=None,
 ):
     viewdirs = None
     if options.nerf.use_viewdirs:
@@ -226,7 +226,7 @@ def run_one_iter_of_nerf(
             expressions=expressions,
             background_prior=background_prior[i] if background_prior is not None else background_prior,
             landmarks3d=landmarks3d if landmarks3d is not None else None,
-            appearance_code_idx=appearance_code_idx,
+            appearance_codes=appearance_codes,
         )
         for i, batch in enumerate(batches)
     ]

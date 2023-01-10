@@ -272,7 +272,7 @@ class FlexibleNeRFaceModel(torch.nn.Module):
         use_landmarks3d: bool = True,
         use_appearance_code: bool =True,
         num_train_images: int = 0,
-        embedding_vector_dim: int = 16,  # based on a-pose
+        embedding_vector_dim: int = 32,  # based on nerface
     ):
         super(FlexibleNeRFaceModel, self).__init__()
 
@@ -285,9 +285,9 @@ class FlexibleNeRFaceModel(torch.nn.Module):
 
         # add appearance code
         self.use_appearance_code = use_appearance_code
-        if use_appearance_code:
-            self.appearance_codes = torch.nn.Embedding(num_embeddings=num_train_images, 
-                                                       embedding_dim=embedding_vector_dim)
+        # if use_appearance_code:
+            # self.appearance_codes = torch.nn.Embedding(num_embeddings=num_train_images, 
+            #                                            embedding_dim=embedding_vector_dim)
 
 
         self.dim_xyz = include_input_xyz + 2 * 3 * num_encoding_fn_xyz
@@ -327,7 +327,7 @@ class FlexibleNeRFaceModel(torch.nn.Module):
 
         self.relu = torch.nn.functional.relu
 
-    def forward(self, x, expression=None, appearance_idx=0):
+    def forward(self, x, expression=None, appearance_codes=None):
         if self.use_landmarks3d:
             xyz, dirs = x[..., : self.dim_landmarks3d+self.dim_xyz], x[..., self.dim_landmarks3d+self.dim_xyz :]
         elif self.use_viewdirs:
@@ -356,12 +356,8 @@ class FlexibleNeRFaceModel(torch.nn.Module):
             x = torch.cat((feat, dirs), dim=-1)
 
             if self.use_appearance_code:
-                if not self.training:
-                    appearance_idx = 0  # it can be any index up to len(training_imgs)
-                appearance_idx = torch.tensor([appearance_idx]).long().to(x.device)
-                appearance = self.appearance_codes(appearance_idx)
-                appearance = appearance.repeat(xyz.shape[0], 1)
-                x = torch.cat((x, appearance), dim=1)
+                appearance_codes = appearance_codes.repeat(xyz.shape[0], 1)
+                x = torch.cat((x, appearance_codes), dim=1)
                 
             for l in self.layers_dir:
                 x = self.relu(l(x))

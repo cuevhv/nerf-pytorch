@@ -195,12 +195,20 @@ def main():
         assert background_img.shape == images[i_train][0].shape
     else:
         background_img = None
-
+    
 
     # Initialize optimizer.
     trainable_parameters = list(model_coarse.parameters())
     if model_fine is not None:
         trainable_parameters += list(model_fine.parameters())
+    
+    if cfg.dataset.use_appearance_code:
+        # appearance_codes = torch.zeros(len(i_train), 32, device=device).requires_grad_()
+        appearance_codes = (torch.randn(len(i_train), 32, device=device)*0.1).requires_grad_()
+        print("initialized latent codes with shape %d X %d" % (appearance_codes.shape[0], appearance_codes.shape[1]))
+        # appearance_codes.requires_grad = True
+        trainable_parameters.append(appearance_codes)
+    
     optimizer = getattr(torch.optim, cfg.optimizer.type)(
         trainable_parameters, lr=cfg.optimizer.lr
     )
@@ -222,6 +230,10 @@ def main():
         model_coarse.load_state_dict(checkpoint["model_coarse_state_dict"])
         if checkpoint["model_fine_state_dict"]:
             model_fine.load_state_dict(checkpoint["model_fine_state_dict"])
+        if checkpoint["appearance_codes"] is not None:
+            print("loading appearance codes from checkpoint")
+            appearance_codes = torch.nn.Parameter(checkpoint['appearance_codes'].to(device))
+        
         optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
         start_iter = checkpoint["iter"]
 
@@ -338,7 +350,7 @@ def main():
                 expressions=expressions_target,
                 background_prior=background_ray_values,
                 landmarks3d=landmarks3d_target,
-                appearance_code_idx=img_idx if cfg.dataset.use_appearance_code else 0
+                appearance_codes=appearance_codes[img_idx].to(device) if cfg.dataset.use_appearance_code else None
             )
             target_ray_values = target_s
 
@@ -359,14 +371,8 @@ def main():
         loss_nerf = coarse_loss + (fine_loss if fine_loss is not None else 0.0)
         
         if cfg.optimizer.appearance_code and cfg.dataset.use_appearance_code:
-            appearance_idx = torch.tensor([img_idx]).long().to(ray_origins.device)
-            embeddings_fine = model_fine.appearance_codes(appearance_idx)
-            embeddings_coarse = model_coarse.appearance_codes(appearance_idx)
-
-            # TODO: rework embeddings so it is done outside the layer 
-            loss_embed_coarse_fine = torch.mean((embeddings_coarse-embeddings_fine)**2)  # we want both embeddings be similar
-            loss_embed_l2 = torch.linalg.norm(embeddings_coarse) + torch.linalg.norm(embeddings_fine)
-            loss = loss_nerf + 0.05*loss_embed_l2 + loss_embed_coarse_fine
+            loss_appearance_codes = torch.linalg.norm(appearance_codes[img_idx])
+            loss = loss_nerf + 0.005*loss_appearance_codes
         else:
             loss = loss_nerf
 
@@ -398,7 +404,7 @@ def main():
             writer.add_scalar("train/fine_loss", fine_loss.item(), i)
         writer.add_scalar("train/psnr", psnr, i)
         if cfg.optimizer.appearance_code and cfg.dataset.use_appearance_code:
-            writer.add_scalar("train/l2_appearance_code", loss_embed_l2.item(), i)
+            writer.add_scalar("train/l2_appearance_code", loss_appearance_codes.item(), i)
 
         # Validation
         if (
@@ -471,7 +477,7 @@ def main():
                             # send all the background to generate the test image
                             background_prior=background_img.view(-1, 3) if cfg.dataset.fix_background else None,
                             landmarks3d=landmarks3d_target,
-                            appearance_code_idx=0,  # it can be any from 0 to len(train_imgs) we chose 0 here
+                            appearance_codes=appearance_codes[0].to(device) if cfg.dataset.use_appearance_code else None,  # it can be any from 0 to len(train_imgs) we chose 0 here
                         )
                         target_ray_values = img_target
                     coarse_loss = img2mse(rgb_coarse[..., :3], target_ray_values[..., :3])
@@ -537,6 +543,7 @@ def main():
                 "optimizer_state_dict": optimizer.state_dict(),
                 "loss": loss,
                 "psnr": psnr,
+                "appearance_codes": appearance_codes.data if cfg.dataset.use_appearance_code else None
             }
             torch.save(
                 checkpoint_dict,
