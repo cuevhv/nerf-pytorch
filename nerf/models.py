@@ -293,7 +293,7 @@ class FlexibleNeRFaceModel(torch.nn.Module):
         self.dim_xyz = include_input_xyz + 2 * 3 * num_encoding_fn_xyz
         self.dim_dir = include_input_dir + 2 * 3 * num_encoding_fn_dir
         self.dim_expression = include_expresion
-        self.dim_landmarks3d = include_landmarks3d # + 2 * include_landmarks3d * num_encoding_fn_dir + include_landmarks3d * 3
+        self.dim_landmarks3d = include_landmarks3d + 2 * include_landmarks3d * num_encoding_fn_dir + include_landmarks3d * 3
         self.dim_appearance_codes = embedding_vector_dim if use_appearance_code else 0
 
         self.skip_connect_every = skip_connect_every

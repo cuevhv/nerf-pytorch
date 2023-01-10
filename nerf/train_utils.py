@@ -9,7 +9,9 @@ def get_pts_landmarks3d_dist(pts, landmarks3d):
        landmarks3d: [K, 3] K is the number of vertices or landmarks in the face mesh
     """
     dist = pts[:, None] - landmarks3d[None, :]
-    return torch.linalg.norm(dist, axis=-1)  # [N, K, 3] = N, K
+    norm = torch.linalg.norm(dist, axis=-1)  # [N, K, 3] = N, K
+    dist = dist/norm[:, :, None]
+    return norm, dist.reshape(pts.shape[0], -1) # [N,K], [N, K*3]
     #return dist.reshape(pts.shape[0], -1)  # [N, K, 3] -> [N, K*3]
 
 
@@ -27,9 +29,9 @@ def run_network(network_fn, pts, ray_batch, chunksize, embed_fn, embeddirs_fn,
     
     if landmarks3d is not None:
         # Get how for a sample point is from the K landmarks
-        dist_pts_lndmks3d = get_pts_landmarks3d_dist(pts_flat, landmarks3d)
-        embedded = torch.cat((dist_pts_lndmks3d, embedded), dim=-1)
-
+        dist_pts_lndmks3d, dir_pts_ldmks3d = get_pts_landmarks3d_dist(pts_flat, landmarks3d)
+        embed_dists = embeddirs_fn(dist_pts_lndmks3d)
+        embedded = torch.cat((embed_dists, dir_pts_ldmks3d, embedded), dim=-1)
     batches = get_minibatches(embedded, chunksize=chunksize)
 
     if expressions is None:
