@@ -1,0 +1,31 @@
+name: face_anim
+channels:
+  - pytorch3d
+  - pytorch
+  - conda-forge
+  - defaults
+  - iopath
+dependencies:
+  - python==3.9
+  - pip
+  - pytorch>=1.12
+  - cuda100
+  - cudatoolkit>=11.3
+  # - cudatoolkit-dev
+  - imageio
+  - numpy
+  - pyyaml
+  - tensorboard
+  - torchvision
+  - tqdm
+  - iopath>=0.1.9
+  - fvcore>=0.1.5
+  - pytorch3d
+  - scikit-learn
+  - pip:
+    - opencv-python-headless
+    - open3d>=0.15
+    - scikit-image
+    - matplotlib
+    - imageio 
+    - plotly
