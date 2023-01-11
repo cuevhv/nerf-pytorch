@@ -10,10 +10,10 @@ SHELL ["/bin/bash", "-c"]
 ENV export FORCE_CUDA="1"
 
 # adding to user to local group
-# ARG USER_ID
-# ARG GROUP_ID
-# RUN addgroup --gid $GROUP_ID user
-# RUN adduser --disabled-password --gecos '' --uid $USER_ID --gid $GROUP_ID user
+ARG USER_ID
+ARG GROUP_ID
+RUN addgroup --gid $GROUP_ID user
+RUN adduser --disabled-password --gecos '' --uid $USER_ID --gid $GROUP_ID user
 
 # remove this in case of conflicts when running apt-get update
 # USER user 
