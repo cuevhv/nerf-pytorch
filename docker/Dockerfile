@@ -1,3 +1,5 @@
+# to run docker
+# docker run  -it --rm --gpus "device=6" -v /raid/grfia/ajgallego/face_anim/nerf-pytorch:/home/user -u $(id -u):$(id -g) fddbeeee4e8e bash home/user/run_script.sh
 FROM nvidia/cuda:11.3.0-cudnn8-devel-ubuntu20.04
 
 # set bash as current shell
@@ -14,7 +16,7 @@ ENV export FORCE_CUDA="1"
 # RUN adduser --disabled-password --gecos '' --uid $USER_ID --gid $GROUP_ID user
 
 # remove this in case of conflicts when running apt-get update
-USER user 
+# USER user 
 
 # CMD nvidia-smi
 # WORKDIR /app
