@@ -24,7 +24,7 @@ dependencies:
   - scikit-learn
   - pip:
     - opencv-python-headless
-    - open3d>=0.15
+    - open3d<0.16
     - scikit-image
     - matplotlib
     - imageio 
