@@ -16,7 +16,7 @@ from nerf import (CfgNode, get_embedding_function, get_ray_bundle, img2mse,
                   mse2psnr, run_one_iter_of_nerf,
                   get_ray_bundle_nerface)
 
-from utils.viewer import show_dirs
+# from utils.viewer import show_dirs
 
 def get_prob_map_bbox(bbox, H, W, p=0.9):
     probs = np.zeros((H,W))
