@@ -1,13 +1,13 @@
 # Parameters to setup experiment.
 experiment:
   # Unique experiment identifier
-  id: face-small-ldmks3d_dirldmks3d_e100000
+  id: face-small-ldmks3d_appearance
   # Experiment logs will be stored at "logdir"/"id"
   logdir: logs
   # Seed for random number generators (for repeatability).
   randomseed: 42  # Cause, why not?
   # Number of training iterations.
-  train_iters: 1000000
+  train_iters: 200000
   # Number of training iterations after which to validate.
   validate_every: 500
   # Number of training iterations after which to checkpoint.
@@ -45,7 +45,7 @@ dataset:
   # sample more points inside bbox
   sample_inside_bbox: True
   # appearance code at for the last part of the network
-  use_appearance_code: False
+  use_appearance_code: True
   
 
 # Model parameters.
@@ -120,7 +120,7 @@ optimizer:
   # Learning rate.
   lr: 1.0e-3 #5.0E-4
   # optimize apperance code
-  appearance_code: True
+  appearance_code: False
  
 # Learning rate schedule.
 scheduler:
