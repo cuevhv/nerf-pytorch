@@ -161,6 +161,7 @@ def main():
         use_expression=cfg.dataset.use_expression,
         use_landmarks3d=cfg.dataset.use_landmarks3d,
         use_appearance_code=cfg.dataset.use_appearance_code,
+        use_deformation_code=cfg.dataset.use_deformation_code,
         num_train_images=len(i_train),
     )
     model_coarse.to(device)
@@ -178,6 +179,7 @@ def main():
             use_expression=cfg.dataset.use_expression,
             use_landmarks3d=cfg.dataset.use_landmarks3d,
             use_appearance_code=cfg.dataset.use_appearance_code,
+            use_deformation_code=cfg.dataset.use_deformation_code,
             num_train_images=len(i_train),
         )
         model_fine.to(device)
@@ -209,6 +211,11 @@ def main():
         # appearance_codes.requires_grad = True
         trainable_parameters.append(appearance_codes)
     
+    if cfg.dataset.use_deformation_code:
+        deformation_codes = (torch.randn(len(i_train), 32, device=device)*0.1).requires_grad_()
+        print("initialized latent codes with shape %d X %d" % (deformation_codes.shape[0], deformation_codes.shape[1]))
+        trainable_parameters.append(deformation_codes)
+    
     optimizer = getattr(torch.optim, cfg.optimizer.type)(
         trainable_parameters, lr=cfg.optimizer.lr
     )
@@ -233,6 +240,10 @@ def main():
         if checkpoint["appearance_codes"] is not None:
             print("loading appearance codes from checkpoint")
             appearance_codes = torch.nn.Parameter(checkpoint['appearance_codes'].to(device))
+        if checkpoint["deformation_codes"] is not None:
+            print("loading appearance codes from checkpoint")
+            deformation_codes = torch.nn.Parameter(checkpoint['deformation_codes'].to(device))
+        
         
         optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
         start_iter = checkpoint["iter"]
@@ -350,7 +361,8 @@ def main():
                 expressions=expressions_target,
                 background_prior=background_ray_values,
                 landmarks3d=landmarks3d_target,
-                appearance_codes=appearance_codes[img_idx].to(device) if cfg.dataset.use_appearance_code else None
+                appearance_codes=appearance_codes[img_idx].to(device) if cfg.dataset.use_appearance_code else None,
+                deformation_codes=deformation_codes[img_idx].to(device) if cfg.dataset.use_deformation_code else None,
             )
             target_ray_values = target_s
 
@@ -364,17 +376,23 @@ def main():
             )
         # loss = torch.nn.functional.mse_loss(rgb_pred[..., :3], target_s[..., :3])
         loss = 0.0
+        loss_nerf, loss_appearance_codes, loss_appearance_codes = 0.0, 0.0, 0.0
         # if fine_loss is not None:
         #     loss = fine_loss
         # else:
         #     loss = coarse_loss
         loss_nerf = coarse_loss + (fine_loss if fine_loss is not None else 0.0)
-        
+        # loss = loss_nerf
+
         if cfg.optimizer.appearance_code and cfg.dataset.use_appearance_code:
             loss_appearance_codes = torch.linalg.norm(appearance_codes[img_idx])
-            loss = loss_nerf + 0.005*loss_appearance_codes
-        else:
-            loss = loss_nerf
+            # loss = loss + 0.005*loss_appearance_codes
+        
+        if cfg.optimizer.deformation_code and cfg.dataset.use_deformation_code:
+            loss_deformation_codes = torch.linalg.norm(deformation_codes[img_idx])
+            # loss = loss + 0.005*loss_deformation_codes
+            
+        loss = loss_nerf + 0.005*loss_appearance_codes + 0.005*loss_deformation_codes
 
         loss.backward()
         psnr = mse2psnr(loss_nerf.item())
@@ -405,6 +423,8 @@ def main():
         writer.add_scalar("train/psnr", psnr, i)
         if cfg.optimizer.appearance_code and cfg.dataset.use_appearance_code:
             writer.add_scalar("train/l2_appearance_code", loss_appearance_codes.item(), i)
+        if cfg.optimizer.deformation_code and cfg.dataset.use_deformation_code:
+            writer.add_scalar("train/l2_deformation_code", loss_deformation_codes.item(), i)
 
         # Validation
         if (
@@ -478,6 +498,7 @@ def main():
                             background_prior=background_img.view(-1, 3) if cfg.dataset.fix_background else None,
                             landmarks3d=landmarks3d_target,
                             appearance_codes=appearance_codes[0].to(device) if cfg.dataset.use_appearance_code else None,  # it can be any from 0 to len(train_imgs) we chose 0 here
+                            deformation_codes=deformation_codes[0].to(device) if cfg.dataset.use_deformation_code else None,
                         )
                         target_ray_values = img_target
                     coarse_loss = img2mse(rgb_coarse[..., :3], target_ray_values[..., :3])
@@ -543,7 +564,8 @@ def main():
                 "optimizer_state_dict": optimizer.state_dict(),
                 "loss": loss,
                 "psnr": psnr,
-                "appearance_codes": appearance_codes.data if cfg.dataset.use_appearance_code else None
+                "appearance_codes": appearance_codes.data if cfg.dataset.use_appearance_code else None,
+                "deformation_codes": deformation_codes.data if cfg.dataset.use_deformation_code else None,
             }
             torch.save(
                 checkpoint_dict,

@@ -46,7 +46,8 @@ dataset:
   sample_inside_bbox: True
   # appearance code at for the last part of the network
   use_appearance_code: False
-  
+  # deformation code at for the first part of the network
+  use_deformation_code: False
 
 # Model parameters.
 models:
@@ -121,6 +122,8 @@ optimizer:
   lr: 5.0E-4
   # optimize apperance code
   appearance_code: False
+  # optimize deformation
+  deformation_code: True
  
 # Learning rate schedule.
 scheduler:

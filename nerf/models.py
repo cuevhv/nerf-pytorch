@@ -271,6 +271,7 @@ class FlexibleNeRFaceModel(torch.nn.Module):
         use_expression: bool = True,
         use_landmarks3d: bool = True,
         use_appearance_code: bool =True,
+        use_deformation_code: bool =True,
         num_train_images: int = 0,
         embedding_vector_dim: int = 32,  # based on nerface
     ):
@@ -285,6 +286,7 @@ class FlexibleNeRFaceModel(torch.nn.Module):
 
         # add appearance code
         self.use_appearance_code = use_appearance_code
+        self.use_deformation_code = use_deformation_code
         # if use_appearance_code:
             # self.appearance_codes = torch.nn.Embedding(num_embeddings=num_train_images, 
             #                                            embedding_dim=embedding_vector_dim)
@@ -295,18 +297,20 @@ class FlexibleNeRFaceModel(torch.nn.Module):
         self.dim_expression = include_expresion
         self.dim_landmarks3d = include_landmarks3d + 2 * include_landmarks3d * num_encoding_fn_dir + include_landmarks3d * 3
         self.dim_appearance_codes = embedding_vector_dim if use_appearance_code else 0
+        self.dim_deformation_codes = embedding_vector_dim if use_deformation_code else 0 
+
 
         self.skip_connect_every = skip_connect_every
         self.use_landmarks3d = use_landmarks3d
         if not use_viewdirs:
             self.dim_dir = 0
 
-        self.layer1 = torch.nn.Linear(self.dim_landmarks3d+self.dim_xyz+self.dim_expression, hidden_size)
+        self.layer1 = torch.nn.Linear(self.dim_landmarks3d+self.dim_xyz+self.dim_expression+self.dim_deformation_codes, hidden_size)
         self.layers_xyz = torch.nn.ModuleList()
         for i in range(num_layers - 1):
             if i % self.skip_connect_every == 0 and i > 0 and i != num_layers - 1:
                 self.layers_xyz.append(
-                    torch.nn.Linear(self.dim_landmarks3d+self.dim_xyz+self.dim_expression + hidden_size, hidden_size)
+                    torch.nn.Linear(self.dim_landmarks3d+self.dim_xyz+self.dim_expression + self.dim_deformation_codes + hidden_size, hidden_size)
                 )
             else:
                 self.layers_xyz.append(torch.nn.Linear(hidden_size, hidden_size))
@@ -327,7 +331,7 @@ class FlexibleNeRFaceModel(torch.nn.Module):
 
         self.relu = torch.nn.functional.relu
 
-    def forward(self, x, expression=None, appearance_codes=None):
+    def forward(self, x, expression=None, appearance_codes=None, deformation_codes=None):
         if self.use_landmarks3d:
             xyz, dirs = x[..., : self.dim_landmarks3d+self.dim_xyz], x[..., self.dim_landmarks3d+self.dim_xyz :]
         elif self.use_viewdirs:
@@ -340,6 +344,10 @@ class FlexibleNeRFaceModel(torch.nn.Module):
             # NOTE: maybe input expression only on the pixels where the face is?
             expressions = (expression * 1 / 3).repeat(xyz.shape[0], 1)
             xyz = torch.cat((xyz, expressions), dim=1)
+
+        if self.use_deformation_code:
+                deformation_codes = deformation_codes.repeat(xyz.shape[0], 1)
+                xyz = torch.cat((xyz, deformation_codes), dim=1)
         
         x = self.layer1(xyz)
         for i in range(len(self.layers_xyz)):
@@ -383,6 +391,7 @@ class FaceNerfPaperNeRFModel(torch.nn.Module):
         use_expression=True,
         use_landmarks3d: bool = True,
         use_appearance_code: bool =True,
+        use_deformation_code: bool = True,
         num_train_images: int = 0,
         embedding_vector_dim=32
 
@@ -402,16 +411,18 @@ class FaceNerfPaperNeRFModel(torch.nn.Module):
         
         # add appearance code
         self.use_appearance_code = use_appearance_code
+        self.use_deformation_code = use_deformation_code
         self.dim_appearance_codes = embedding_vector_dim if use_appearance_code else 0
+        self.dim_deformation_codes = embedding_vector_dim if use_deformation_code else 0
         # self.dim_latent_code = embedding_vector_dim
 
         self.layers_xyz = torch.nn.ModuleList()
         self.use_viewdirs = use_viewdirs
         self.use_landmarks3d = use_landmarks3d
-        self.layers_xyz.append(torch.nn.Linear(self.dim_landmarks3d + self.dim_xyz + self.dim_expression, 256))
+        self.layers_xyz.append(torch.nn.Linear(self.dim_landmarks3d + self.dim_xyz + self.dim_expression + self.dim_deformation_codes, 256))
         for i in range(1, 6):
             if i == 3:
-                self.layers_xyz.append(torch.nn.Linear(self.dim_landmarks3d + self.dim_xyz + self.dim_expression + 256, 256))
+                self.layers_xyz.append(torch.nn.Linear(self.dim_landmarks3d + self.dim_xyz + self.dim_expression + self.dim_deformation_codes + 256, 256))
             else:
                 self.layers_xyz.append(torch.nn.Linear(256, 256))
         self.fc_feat = torch.nn.Linear(256, 256)
@@ -424,7 +435,7 @@ class FaceNerfPaperNeRFModel(torch.nn.Module):
         self.fc_rgb = torch.nn.Linear(128, 3)
         self.relu = torch.nn.functional.relu
 
-    def forward(self, x,  expression=None, appearance_codes=None, **kwargs):
+    def forward(self, x,  expression=None, appearance_codes=None, deformation_codes=None, **kwargs):
         if self.use_landmarks3d:
             xyz, dirs = x[..., : self.dim_landmarks3d+self.dim_xyz], x[..., self.dim_landmarks3d+self.dim_xyz :]
         elif self.use_viewdirs:
@@ -433,15 +444,18 @@ class FaceNerfPaperNeRFModel(torch.nn.Module):
             xyz = x[..., : self.dim_xyz]
         
         x = xyz#self.relu(self.layers_xyz[0](xyz))
+        initial = xyz
+
         # appearance_codes = appearance_codes.repeat(xyz.shape[0], 1)
         if self.dim_expression > 0:
             expr_encoding = (expression * 1 / 3).repeat(xyz.shape[0], 1)
-            initial = torch.cat((xyz, expr_encoding), dim=1)
+            initial = torch.cat((initial, expr_encoding), dim=1)
             # initial = torch.cat((xyz, expr_encoding, appearance_codes), dim=1)
-            x = initial
-        else:
-            initial = xyz
-
+        if self.use_deformation_code:
+            deformation_codes = deformation_codes.repeat(xyz.shape[0], 1)
+            initial = torch.cat((initial, deformation_codes), dim=1)
+        x = initial
+                   
         for i in range(6):
             if i == 3:
                 x = self.layers_xyz[i](torch.cat((initial, x), -1))
