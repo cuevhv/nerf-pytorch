@@ -376,7 +376,7 @@ def main():
             )
         # loss = torch.nn.functional.mse_loss(rgb_pred[..., :3], target_s[..., :3])
         loss = 0.0
-        loss_nerf, loss_appearance_codes, loss_appearance_codes = 0.0, 0.0, 0.0
+        loss_nerf, loss_appearance_codes, loss_deformation_codes = 0.0, 0.0, 0.0
         # if fine_loss is not None:
         #     loss = fine_loss
         # else:
