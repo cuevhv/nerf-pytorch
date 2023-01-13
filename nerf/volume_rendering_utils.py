@@ -44,6 +44,7 @@ def volume_render_radiance_field(
         )
         # noise = noise.to(radiance_field)
     sigma_a = torch.nn.functional.relu(radiance_field[..., 3] + noise)
+    sigma_a[:,-1] += 1e-6  # help with the black dots https://github.com/gafniguy/4D-Facial-Avatars/issues/4#issuecomment-840553992
     alpha = 1.0 - torch.exp(-sigma_a * dists)
     weights = alpha * cumprod_exclusive(1.0 - alpha + 1e-10)
 
