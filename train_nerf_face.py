@@ -237,10 +237,10 @@ def main():
         model_coarse.load_state_dict(checkpoint["model_coarse_state_dict"])
         if checkpoint["model_fine_state_dict"]:
             model_fine.load_state_dict(checkpoint["model_fine_state_dict"])
-        if checkpoint["appearance_codes"] is not None:
+        if "appearance_codes" in checkpoint and checkpoint["appearance_codes"] is not None:
             print("loading appearance codes from checkpoint")
             appearance_codes = torch.nn.Parameter(checkpoint['appearance_codes'].to(device))
-        if checkpoint["deformation_codes"] is not None:
+        if "deformation_codes" in checkpoint and checkpoint["deformation_codes"] is not None:
             print("loading appearance codes from checkpoint")
             deformation_codes = torch.nn.Parameter(checkpoint['deformation_codes'].to(device))
         
