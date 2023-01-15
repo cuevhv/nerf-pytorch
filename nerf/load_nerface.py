@@ -84,6 +84,8 @@ def load_nerface_data(basedir, half_res=False, testskip=1, debug=False,
         for i, frame in tqdm(enumerate(meta["frames"][::skip])):
             # if i > 200: break
             fname = os.path.join(basedir, frame["file_path"] + ".png")
+            names.append(os.path.basename(fname))
+            # imgs.append(cv2.resize(np.asarray(imageio.imread(fname)),  dsize=(64, 64), interpolation=cv2.INTER_AREA))
             imgs.append(np.asarray(imageio.imread(fname)))
             poses.append(np.array(frame["transform_matrix"]))
 
