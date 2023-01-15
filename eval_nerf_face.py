@@ -5,12 +5,15 @@ import time
 import imageio
 import numpy as np
 import torch
+from PIL import Image
 import torchvision
 import yaml
 from tqdm import tqdm
 
 from nerf import (
     CfgNode,
+    load_nerface_data,
+    get_ray_bundle_nerface,
     get_ray_bundle,
     load_blender_data,
     load_llff_data,
@@ -74,6 +77,25 @@ def main():
         i_train, i_val, i_test = i_split
         H, W, focal = hwf
         H, W = int(H), int(W)
+    elif cfg.dataset.type.lower() == "face":
+        images, poses, render_poses, hwf, i_split, expressions, landmarks3d, bboxs = load_nerface_data(
+            cfg.dataset.basedir,
+            half_res=cfg.dataset.half_res,
+            testskip=cfg.dataset.testskip,
+            load_expressions=cfg.dataset.use_expression,
+            load_landmarks3d=cfg.dataset.use_landmarks3d,
+        )
+
+        if not cfg.dataset.use_expression:
+            expressions = None
+
+        # show_dirs(poses, cfg)
+
+        i_train, i_val, i_test = i_split
+        H, W, focal = hwf
+        H, W = int(H), int(W)
+        hwf = [H, W, focal]
+
     elif cfg.dataset.type.lower() == "llff":
         # Load LLFF dataset
         images, poses, bds, render_poses, i_test = load_llff_data(
@@ -112,6 +134,11 @@ def main():
         use_viewdirs=cfg.models.coarse.use_viewdirs,
         num_layers=cfg.models.coarse.num_layers,
         hidden_size=cfg.models.coarse.hidden_size,
+        use_expression=cfg.dataset.use_expression,
+        use_landmarks3d=cfg.dataset.use_landmarks3d,
+        use_appearance_code=cfg.dataset.use_appearance_code,
+        use_deformation_code=cfg.dataset.use_deformation_code,
+        num_train_images=len(i_train),
     )
     model_coarse.to(device)
 
@@ -126,8 +153,26 @@ def main():
             use_viewdirs=cfg.models.fine.use_viewdirs,
             num_layers=cfg.models.coarse.num_layers,
             hidden_size=cfg.models.coarse.hidden_size,
+            use_expression=cfg.dataset.use_expression,
+            use_landmarks3d=cfg.dataset.use_landmarks3d,
+            use_appearance_code=cfg.dataset.use_appearance_code,
+            use_deformation_code=cfg.dataset.use_deformation_code,
+            num_train_images=len(i_train),
         )
         model_fine.to(device)
+
+    if cfg.dataset.fix_background:
+        # based on nerface https://github.com/gafniguy/4D-Facial-Avatars/blob/989be64216df754a4a34f8f53d7a71af130b57d5/nerface_code/nerf-pytorch/train_transformed_rays.py#L160
+        print("loading gt background to condition on")
+        background_img = Image.open(os.path.join(cfg.dataset.basedir,'bg','00050.png'))
+        background_img.thumbnail((H,W))
+        background_img = torch.from_numpy(np.array(background_img).astype(np.float32)).to(device)
+        background_img = background_img/255
+        print("bg shape", background_img.shape)
+        print("should be ", images[i_train][0].shape)
+        assert background_img.shape == images[i_train][0].shape
+    else:
+        background_img = None
 
     checkpoint = torch.load(configargs.checkpoint)
     model_coarse.load_state_dict(checkpoint["model_coarse_state_dict"])
@@ -139,6 +184,18 @@ def main():
                 "The checkpoint has a fine-level model, but it could "
                 "not be loaded (possibly due to a mismatched config file."
             )
+
+    if "appearance_codes" in checkpoint and checkpoint["appearance_codes"] is not None:
+        print("loading appearance codes from checkpoint")
+        appearance_codes = torch.nn.Parameter(checkpoint['appearance_codes'].to(device))
+    else:
+        appearance_codes = None
+    if "deformation_codes" in checkpoint and checkpoint["deformation_codes"] is not None:
+        print("loading appearance codes from checkpoint")
+        deformation_codes = torch.nn.Parameter(checkpoint['deformation_codes'].to(device))
+    else:
+        deformation_codes = None
+
     if "height" in checkpoint.keys():
         hwf[0] = checkpoint["height"]
     if "width" in checkpoint.keys():
@@ -150,7 +207,7 @@ def main():
     if model_fine:
         model_fine.eval()
 
-    render_poses = render_poses.float().to(device)
+    poses = poses.float()
 
     # Create directory to save images to.
     os.makedirs(configargs.savedir, exist_ok=True)
@@ -159,17 +216,29 @@ def main():
 
     # Evaluation loop
     times_per_image = []
-    for i, pose in enumerate(tqdm(render_poses)):
+    for i, img_idx in enumerate(i_val): #enumerate(tqdm(render_poses)):
         start = time.time()
         rgb = None, None
         disp = None, None
         with torch.no_grad():
-            pose = pose[:3, :4]
-            ray_origins, ray_directions = get_ray_bundle(hwf[0], hwf[1], hwf[2], pose)
-            rgb_coarse, disp_coarse, _, rgb_fine, disp_fine, _ = run_one_iter_of_nerf(
-                hwf[0],
-                hwf[1],
-                hwf[2],
+            # pose = pose[:3, :4]
+            img_target = images[img_idx].to(device)
+            pose_target = poses[img_idx, :3, :4].to(device)
+            if expressions is not None:
+                expressions_target = expressions[img_idx].to(device)
+            else:
+                expressions_target = None
+
+            if landmarks3d is not None:
+                landmarks3d_target = landmarks3d[img_idx].to(device)
+            else:
+                landmarks3d_target = None
+
+            ray_origins, ray_directions = get_ray_bundle_nerface(H, W, focal, pose_target)
+            rgb_coarse, disp_coarse, _, rgb_fine, disp_fine, _ ,weights_background_sample = run_one_iter_of_nerf(
+                H,
+                W,
+                focal,
                 model_coarse,
                 model_fine,
                 ray_origins,
@@ -178,6 +247,12 @@ def main():
                 mode="validation",
                 encode_position_fn=encode_position_fn,
                 encode_direction_fn=encode_direction_fn,
+                expressions=expressions_target,
+                # send all the background to generate the test image
+                background_prior=background_img.view(-1, 3) if cfg.dataset.fix_background else None,
+                landmarks3d=landmarks3d_target,
+                appearance_codes=appearance_codes[0].to(device) if cfg.dataset.use_appearance_code else None,  # it can be any from 0 to len(train_imgs) we chose 0 here
+                deformation_codes=deformation_codes[0].to(device) if cfg.dataset.use_deformation_code else None,
             )
             rgb = rgb_fine if rgb_fine is not None else rgb_coarse
             if configargs.save_disparity_image:
