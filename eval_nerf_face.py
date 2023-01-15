@@ -78,7 +78,7 @@ def main():
         H, W, focal = hwf
         H, W = int(H), int(W)
     elif cfg.dataset.type.lower() == "face":
-        images, poses, render_poses, hwf, i_split, expressions, landmarks3d, bboxs = load_nerface_data(
+        images, poses, render_poses, hwf, i_split, expressions, landmarks3d, bboxs, names = load_nerface_data(
             cfg.dataset.basedir,
             half_res=cfg.dataset.half_res,
             testskip=cfg.dataset.testskip,
@@ -141,7 +141,6 @@ def main():
         num_train_images=len(i_train),
     )
     model_coarse.to(device)
-
     # If a fine-resolution model is specified, initialize it.
     model_fine = None
     if hasattr(cfg.models, "fine"):
@@ -211,8 +210,14 @@ def main():
 
     # Create directory to save images to.
     os.makedirs(configargs.savedir, exist_ok=True)
+    folder_coarse = os.path.join(configargs.savedir, "coarse")
+    folder_fine = os.path.join(configargs.savedir, "fine")
+    os.makedirs(folder_coarse, exist_ok=True)
+    os.makedirs(folder_fine, exist_ok=True)
+    
     if configargs.save_disparity_image:
-        os.makedirs(os.path.join(configargs.savedir, "disparity"), exist_ok=True)
+        os.makedirs(os.path.join(folder_coarse, "disparity"), exist_ok=True)
+        os.makedirs(os.path.join(folder_fine, "disparity"), exist_ok=True)
 
     # Evaluation loop
     times_per_image = []
@@ -254,18 +259,24 @@ def main():
                 appearance_codes=appearance_codes[0].to(device) if cfg.dataset.use_appearance_code else None,  # it can be any from 0 to len(train_imgs) we chose 0 here
                 deformation_codes=deformation_codes[0].to(device) if cfg.dataset.use_deformation_code else None,
             )
-            rgb = rgb_fine if rgb_fine is not None else rgb_coarse
-            if configargs.save_disparity_image:
-                disp = disp_fine if disp_fine is not None else disp_coarse
+            target_ray_values = img_target
         times_per_image.append(time.time() - start)
         if configargs.savedir:
-            savefile = os.path.join(configargs.savedir, f"{i:04d}.png")
-            imageio.imwrite(
-                savefile, cast_to_image(rgb[..., :3], cfg.dataset.type.lower())
-            )
+            # save coarse 
+            savefile = os.path.join(folder_coarse, names[img_idx])
+            imageio.imwrite(savefile, cast_to_image(rgb_coarse[..., :3], cfg.dataset.type.lower()))
             if configargs.save_disparity_image:
-                savefile = os.path.join(configargs.savedir, "disparity", f"{i:04d}.png")
-                imageio.imwrite(savefile, cast_to_disparity_image(disp))
+                savefile = os.path.join(folder_coarse, "disparity", names[img_idx])
+                imageio.imwrite(savefile, cast_to_disparity_image(disp_coarse))
+
+            # save fine
+            if rgb_fine is not None:
+                savefile = os.path.join(folder_fine, names[img_idx])
+                imageio.imwrite(savefile, cast_to_image(rgb_fine[..., :3], cfg.dataset.type.lower()))
+                if configargs.save_disparity_image:
+                    savefile = os.path.join(folder_fine, "disparity", names[img_idx])
+                    imageio.imwrite(savefile, cast_to_disparity_image(disp_fine))
+
         tqdm.write(f"Avg time per image: {sum(times_per_image) / (i + 1)}")
 
 

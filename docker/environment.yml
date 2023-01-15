@@ -29,3 +29,4 @@ dependencies:
     - matplotlib
     - imageio 
     - plotly
+    - lpips

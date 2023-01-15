@@ -79,7 +79,7 @@ def main():
                 images = images[..., :3] * images[..., -1:] + (1.0 - images[..., -1:])
 
         if cfg.dataset.type.lower() == "face":
-            images, poses, render_poses, hwf, i_split, expressions, landmarks3d, bboxs = load_nerface_data(
+            images, poses, render_poses, hwf, i_split, expressions, landmarks3d, bboxs, names = load_nerface_data(
                 cfg.dataset.basedir,
                 half_res=cfg.dataset.half_res,
                 testskip=cfg.dataset.testskip,

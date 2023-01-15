@@ -66,6 +66,7 @@ def load_nerface_data(basedir, half_res=False, testskip=1, debug=False,
     all_expressions = []
     all_landmarks3d = []
     all_bboxs = []
+    names = []
     counts = [0]
 
     for s in splits:
@@ -194,4 +195,4 @@ def load_nerface_data(basedir, half_res=False, testskip=1, debug=False,
 
     print("finish loading")
 
-    return imgs, poses, render_poses, [H, W, intrinsics], i_split, expressions, landmarks3d, bboxs
+    return imgs, poses, render_poses, [H, W, intrinsics], i_split, expressions, landmarks3d, bboxs, names
