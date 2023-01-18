@@ -52,7 +52,7 @@ def save_L2_image(im1, im2, outname):
     ax.set_axis_off()
     fig.add_axes(ax)
     plt.set_cmap('jet')
-    ax.imshow(diff, aspect='equal')
+    ax.imshow(diff, aspect='equal', vmin=0.0, vmax=0.5)
     plt.savefig(outname, dpi=80)
     plt.close(fig)
 
