@@ -259,13 +259,18 @@ def sample_pdf(bins, weights, num_samples, det=False):
     return samples
 
 
-def sample_pdf_2(bins, weights, num_samples, det=False):
+def sample_pdf_2(bins, weights, num_samples, det=False, sample2ldmks_weights=None):
     r"""sample_pdf function from another concurrent pytorch implementation
     by yenchenlin (https://github.com/yenchenlin/nerf-pytorch).
     """
 
     weights = weights + 1e-5
     pdf = weights / torch.sum(weights, dim=-1, keepdim=True)
+    if sample2ldmks_weights is not None:
+        sample2ldmks_weights = sample2ldmks_weights + 1e-8
+        # pdf * prior_weight
+        pdf = pdf * (sample2ldmks_weights / torch.sum(sample2ldmks_weights, dim=-1, keepdim=True))
+        pdf = pdf / torch.sum(pdf, dim=-1, keepdim=True)
     cdf = torch.cumsum(pdf, dim=-1)
     cdf = torch.cat(
         [torch.zeros_like(cdf[..., :1]), cdf], dim=-1
