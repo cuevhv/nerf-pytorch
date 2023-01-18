@@ -48,6 +48,8 @@ dataset:
   use_appearance_code: False
   # deformation code at for the first part of the network
   use_deformation_code: False
+  # use distance between landmarks and sample points
+  use_ldmks_dist: False
 
 # Model parameters.
 models:
