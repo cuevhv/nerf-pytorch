@@ -4,6 +4,11 @@ from .nerf_helpers import get_minibatches, ndc_rays
 from .nerf_helpers import sample_pdf_2 as sample_pdf
 from .volume_rendering_utils import volume_render_radiance_field
 
+from pytorch3d.ops.knn import knn_points
+import matplotlib.pyplot as plt
+import numpy as np
+
+
 def get_pts_landmarks3d_dist(pts, landmarks3d):
     """pts: [N, 3] N is number of sampled piints of the whole image, not only a ray
        landmarks3d: [K, 3] K is the number of vertices or landmarks in the face mesh
@@ -59,6 +64,7 @@ def predict_and_render_radiance(
     landmarks3d=None,
     appearance_codes=None,
     deformation_codes=None,
+    use_ldmks_dist=False,
 ):
     # TESTED
     num_rays = ray_batch.shape[0]
@@ -127,14 +133,32 @@ def predict_and_render_radiance(
     if getattr(options.nerf, mode).num_fine > 0:
         # rgb_map_0, disp_map_0, acc_map_0 = rgb_map, disp_map, acc_map
 
+        if use_ldmks_dist:
+            # get distance between sampled points pts and landmarks3d
+            dist_pts2ldmks3d = knn_points(pts, landmarks3d[None].repeat(pts.shape[0],1,1), K=1)[0]
+            alpha = 2000  # controls how sharp the probability will be higher more sharp
+            dist_pts2ldmks3d = torch.exp(-dist_pts2ldmks3d*alpha).squeeze()
+
         z_vals_mid = 0.5 * (z_vals[..., 1:] + z_vals[..., :-1])
         z_samples = sample_pdf(
             z_vals_mid,
             weights[..., 1:-1],
             getattr(options.nerf, mode).num_fine,
             det=(getattr(options.nerf, mode).perturb == 0.0),
+            sample2ldmks_weights=dist_pts2ldmks3d[..., 1:-1] if use_ldmks_dist else None,
         )
         z_samples = z_samples.detach()
+
+        ablation_plot_points = False
+        if ablation_plot_points:                    
+            plots = show_samples(3)
+            pts_old = ro[..., None, :] + rd[..., None, :] * z_vals[..., :, None]
+            pts_new = ro[..., None, :] + rd[..., None, :] * z_samples[..., :, None]
+            plots.add_sample_weights(pts_old, 
+                                dist_pts2ldmks3d if use_ldmks_dist else weights)
+            plots.add_samples(pts_old, landmarks3d)
+            plots.add_samples(pts_new, landmarks3d)
+            plt.show()
 
         z_vals, _ = torch.sort(torch.cat((z_vals, z_samples), dim=-1), dim=-1)
         # pts -> (N_rays, N_samples + N_importance, 3)
@@ -172,6 +196,49 @@ def predict_and_render_radiance(
     return rgb_coarse, disp_coarse, acc_coarse, rgb_fine, disp_fine, acc_fine, weights[:, -1] # background weight
 
 
+class show_samples:
+    def __init__(self, n_figures):
+        self.fig = plt.figure() #(figsize=(12, 8),)
+        # ax = plt.figure().add_subplot(projection='3d')
+        self.n_figures = n_figures
+        self.count_figures = 0
+
+    def add_subplot(self):
+        self.count_figures += 1
+        return self.fig.add_subplot(1, self.n_figures, self.count_figures, projection='3d')
+
+    def add_samples(self, pts, landmarks3d):
+        ax = self.add_subplot()
+        ldmks3d_np = landmarks3d.detach().cpu().numpy()
+        pts_np = pts.detach().cpu().reshape([-1, 3]).numpy()
+        x, y, z = pts_np[:, 0], pts_np[:, 1], pts_np[:, 2] 
+
+        ax.plot(x,y,z, '.r')#, vmin=0, vmax=1)
+        ax.plot(ldmks3d_np[:, 0], ldmks3d_np[:, 1], ldmks3d_np[:, 2], '.b')
+        self.ax_properties(ax)
+
+
+    def add_sample_weights(self, pts, weights):
+        ax = self.add_subplot()
+        pts_np = pts.detach().cpu().reshape([-1, 3]).numpy()
+        x, y, z = pts_np[:, 0], pts_np[:, 1], pts_np[:, 2]
+
+        # dist_pts2ldmks3d = dist_pts2ldmks3d/dist_pts2ldmks3d.sum(axis=1, keepdims=True)  #  remove, just to test how the prob for each ray will look like
+        p_np = weights.detach().cpu().numpy()
+        p_np = (p_np/p_np.sum(axis=1, keepdims=True)).flatten()
+        
+        ax.scatter(x,y,z, c=p_np, cmap=plt.cm.magma)#, vmin=0, vmax=1)        
+        self.ax_properties(ax)
+
+    def ax_properties(self, ax):
+        ax.set_xlabel('$X$')
+        ax.set_ylabel('$Y$')
+        ax.set_ylabel('$Z$')
+        ax.set_xlim3d(-0.20, 0.20)
+        ax.set_ylim3d(-0.30, 0.30)
+        ax.set_zlim3d(-0.20, 0.20)
+
+
 def run_one_iter_of_nerf(
     height,
     width,
@@ -189,6 +256,7 @@ def run_one_iter_of_nerf(
     landmarks3d=None,
     appearance_codes=None,
     deformation_codes=None,
+    use_ldmks_dist=False,
 ):
     viewdirs = None
     if options.nerf.use_viewdirs:
@@ -234,6 +302,7 @@ def run_one_iter_of_nerf(
             landmarks3d=landmarks3d if landmarks3d is not None else None,
             appearance_codes=appearance_codes,
             deformation_codes=deformation_codes,
+            use_ldmks_dist=use_ldmks_dist,
         )
         for i, batch in enumerate(batches)
     ]
