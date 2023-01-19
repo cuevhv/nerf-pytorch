@@ -257,8 +257,12 @@ def main():
     #     probs = get_prob_map_bbox(bbox, H, W, p=0.9)
     #     ray_importance_sampling_maps.append(probs.reshape(-1))
         
-    for i in trange(start_iter, cfg.experiment.train_iters):
-
+    for i in trange(0, cfg.experiment.train_iters):
+        if i < start_iter:
+            # Trick to continue the random choice when loading the checkpoint
+            # TODO: change for randomstate 
+            img_idx = np.random.choice(i_train)  
+            continue
         model_coarse.train()
         if model_fine:
             model_fine.train()
