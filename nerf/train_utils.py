@@ -136,7 +136,7 @@ def predict_and_render_radiance(
         if use_ldmks_dist:
             # get distance between sampled points pts and landmarks3d
             dist_pts2ldmks3d = knn_points(pts, landmarks3d[None].repeat(pts.shape[0],1,1), K=1)[0]
-            alpha = 2000  # controls how sharp the probability will be higher more sharp
+            alpha = 2000  # smoothing term. Controls how sharp the probability will be. The higher, the more sharp
             dist_pts2ldmks3d = torch.exp(-dist_pts2ldmks3d*alpha).squeeze()
 
         z_vals_mid = 0.5 * (z_vals[..., 1:] + z_vals[..., :-1])
