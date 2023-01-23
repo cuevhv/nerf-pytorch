@@ -111,7 +111,7 @@ def get_ray_bundle(
 
 
 def positional_encoding(
-    tensor, num_encoding_functions=6, include_input=True, log_sampling=True
+    tensor, num_encoding_functions=6, include_input=True, log_sampling=True, weights=None, cutoff_type=None,
 ) -> torch.Tensor:
     r"""Apply positional encoding to the input.
 
@@ -127,7 +127,16 @@ def positional_encoding(
     """
     # TESTED
     # Trivially, the input tensor is added to the positional encoding.
-    encoding = [tensor] if include_input else []
+    if weights is None:
+        w = 1
+    else:
+        w = weights
+
+    if cutoff_type == "all" and weights is not None:
+        encoding = [w*tensor] if include_input else []
+    else:
+        encoding = [tensor] if include_input else []
+        
     frequency_bands = None
     if log_sampling:
         frequency_bands = 2.0 ** torch.linspace(
@@ -145,10 +154,12 @@ def positional_encoding(
             dtype=tensor.dtype,
             device=tensor.device,
         )
-
     for freq in frequency_bands:
         for func in [torch.sin, torch.cos]:
-            encoding.append(func(tensor * freq))
+            if cutoff_type == "only_sincos" and weights is not None:
+                encoding.append(w*func(tensor * freq))
+            else:
+                encoding.append(func(tensor * freq))
 
     # Special case, for no positional encoding
     if len(encoding) == 1:
@@ -162,8 +173,8 @@ def get_embedding_function(
 ):
     r"""Returns a lambda function that internally calls positional_encoding.
     """
-    return lambda x: positional_encoding(
-        x, num_encoding_functions, include_input, log_sampling
+    return lambda x, weights, cutoff_type: positional_encoding(
+        x, num_encoding_functions, include_input, log_sampling, weights, cutoff_type,
     )
 
 

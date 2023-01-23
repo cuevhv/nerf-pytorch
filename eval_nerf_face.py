@@ -259,6 +259,7 @@ def main():
                 appearance_codes=appearance_codes[0].to(device) if cfg.dataset.use_appearance_code else None,  # it can be any from 0 to len(train_imgs) we chose 0 here
                 deformation_codes=deformation_codes[0].to(device) if cfg.dataset.use_deformation_code else None,
                 use_ldmks_dist=cfg.dataset.use_ldmks_dist,
+                cutoff_type=None if cfg.dataset.cutoff_type == "None" else cfg.dataset.cutoff_type,
             )
             target_ray_values = img_target
         times_per_image.append(time.time() - start)

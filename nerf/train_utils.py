@@ -21,21 +21,32 @@ def get_pts_landmarks3d_dist(pts, landmarks3d):
 
 
 def run_network(network_fn, pts, ray_batch, chunksize, embed_fn, embeddirs_fn,
-                expressions=None, landmarks3d=None, appearance_codes=None, deformation_codes=None):
+                expressions=None, landmarks3d=None, appearance_codes=None, deformation_codes=None,
+                cutoff_type=None):
 
     pts_flat = pts.reshape((-1, pts.shape[-1]))
-    embedded = embed_fn(pts_flat)
+    embedded = embed_fn(pts_flat, None, None)
     if embeddirs_fn is not None:
         viewdirs = ray_batch[..., None, -3:]
         input_dirs = viewdirs.expand(pts.shape)
         input_dirs_flat = input_dirs.reshape((-1, input_dirs.shape[-1]))
-        embedded_dirs = embeddirs_fn(input_dirs_flat)
+        embedded_dirs = embeddirs_fn(input_dirs_flat, None, None)
         embedded = torch.cat((embedded, embedded_dirs), dim=-1)
     
     if landmarks3d is not None:
         # Get how for a sample point is from the K landmarks
         dist_pts_lndmks3d, dir_pts_ldmks3d = get_pts_landmarks3d_dist(pts_flat, landmarks3d)
-        embed_dists = embeddirs_fn(dist_pts_lndmks3d)
+
+        if cutoff_type is not None:
+            tau = 100  # sharpness
+            threshold_dist = 0.09  # threshold distance
+            cutoff_w = 1-torch.sigmoid(tau*(dist_pts_lndmks3d-threshold_dist))
+            # p_np = cutoff_w.min(axis=-1)[0].detach().cpu().numpy()
+        else:
+            cutoff_w = None
+        
+        embed_dists = embeddirs_fn(dist_pts_lndmks3d, cutoff_w, cutoff_type)
+        
         embedded = torch.cat((embed_dists, dir_pts_ldmks3d, embedded), dim=-1)
     batches = get_minibatches(embedded, chunksize=chunksize)
 
@@ -65,6 +76,7 @@ def predict_and_render_radiance(
     appearance_codes=None,
     deformation_codes=None,
     use_ldmks_dist=False,
+    cutoff_type=None,
 ):
     # TESTED
     num_rays = ray_batch.shape[0]
@@ -108,6 +120,7 @@ def predict_and_render_radiance(
         landmarks3d=landmarks3d,
         appearance_codes=appearance_codes,
         deformation_codes=deformation_codes,
+        cutoff_type=cutoff_type,
     )
     if background_prior is not None:
         # make the last sample of the ray be equal to the background
@@ -151,11 +164,15 @@ def predict_and_render_radiance(
 
         ablation_plot_points = False
         if ablation_plot_points:                    
-            plots = show_samples(3)
+            plots = show_samples(5)
             pts_old = ro[..., None, :] + rd[..., None, :] * z_vals[..., :, None]
             pts_new = ro[..., None, :] + rd[..., None, :] * z_samples[..., :, None]
+            plots.add_sample_weights(pts_old, weights)
             plots.add_sample_weights(pts_old, 
                                 dist_pts2ldmks3d if use_ldmks_dist else weights)
+            plots.add_sample_weights(pts_old, 
+                            dist_pts2ldmks3d/dist_pts2ldmks3d.sum(axis=1, keepdims=True) + \
+                                weights/weights.sum(axis=1, keepdims=True))
             plots.add_samples(pts_old, landmarks3d)
             plots.add_samples(pts_new, landmarks3d)
             plt.show()
@@ -175,6 +192,7 @@ def predict_and_render_radiance(
             landmarks3d=landmarks3d,
             appearance_codes=appearance_codes,
             deformation_codes=deformation_codes,
+            cutoff_type=cutoff_type,
         )
 
         if background_prior is not None:
@@ -220,15 +238,22 @@ class show_samples:
 
     def add_sample_weights(self, pts, weights):
         ax = self.add_subplot()
-        pts_np = pts.detach().cpu().reshape([-1, 3]).numpy()
-        x, y, z = pts_np[:, 0], pts_np[:, 1], pts_np[:, 2]
 
         # dist_pts2ldmks3d = dist_pts2ldmks3d/dist_pts2ldmks3d.sum(axis=1, keepdims=True)  #  remove, just to test how the prob for each ray will look like
         p_np = weights.detach().cpu().numpy()
         p_np = (p_np/p_np.sum(axis=1, keepdims=True)).flatten()
-        
-        ax.scatter(x,y,z, c=p_np, cmap=plt.cm.magma)#, vmin=0, vmax=1)        
+
+        mask = p_np > 0.01
+        p_np = p_np[mask]
+
+        pts_np = pts.detach().cpu().reshape([-1, 3]).numpy()
+        pts_np = pts_np[mask]
+        x, y, z = pts_np[:, 0], pts_np[:, 1], pts_np[:, 2]
+
+
+        scatter = ax.scatter(x,y,z, c=p_np, alpha=p_np, cmap=plt.cm.magma, vmin=0, vmax=0.5)#, vmin=0, vmax=1)        
         self.ax_properties(ax)
+        plt.colorbar(scatter)
 
     def ax_properties(self, ax):
         ax.set_xlabel('$X$')
@@ -257,6 +282,7 @@ def run_one_iter_of_nerf(
     appearance_codes=None,
     deformation_codes=None,
     use_ldmks_dist=False,
+    cutoff_type=None,
 ):
     viewdirs = None
     if options.nerf.use_viewdirs:
@@ -295,6 +321,7 @@ def run_one_iter_of_nerf(
             model_coarse,
             model_fine,
             options,
+            mode=mode,
             encode_position_fn=encode_position_fn,
             encode_direction_fn=encode_direction_fn,
             expressions=expressions,
@@ -303,6 +330,7 @@ def run_one_iter_of_nerf(
             appearance_codes=appearance_codes,
             deformation_codes=deformation_codes,
             use_ldmks_dist=use_ldmks_dist,
+            cutoff_type=cutoff_type,
         )
         for i, batch in enumerate(batches)
     ]
