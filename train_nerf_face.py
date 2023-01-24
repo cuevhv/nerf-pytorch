@@ -148,13 +148,21 @@ def main():
             include_input=cfg.models.coarse.include_input_dir,
             log_sampling=cfg.models.coarse.log_sampling_dir,
         )
+    
+    encode_ldmks_fn = get_embedding_function(
+        num_encoding_functions=cfg.models.coarse.num_encoding_fn_ldmks,
+        include_input=cfg.models.coarse.include_input_ldmks,
+        log_sampling=cfg.models.coarse.log_sampling_ldmks,
+    )
 
     # Initialize a coarse-resolution model.
     model_coarse = getattr(models, cfg.models.coarse.type)(
         num_encoding_fn_xyz=cfg.models.coarse.num_encoding_fn_xyz,
         num_encoding_fn_dir=cfg.models.coarse.num_encoding_fn_dir,
+        num_encoding_fn_ldmks=cfg.models.coarse.num_encoding_fn_ldmks,
         include_input_xyz=cfg.models.coarse.include_input_xyz,
         include_input_dir=cfg.models.coarse.include_input_dir,
+        include_input_ldmks=cfg.models.coarse.include_input_ldmks,
         use_viewdirs=cfg.models.coarse.use_viewdirs,
         num_layers=cfg.models.coarse.num_layers,
         hidden_size=cfg.models.coarse.hidden_size,
@@ -171,8 +179,10 @@ def main():
         model_fine = getattr(models, cfg.models.fine.type)(
             num_encoding_fn_xyz=cfg.models.fine.num_encoding_fn_xyz,
             num_encoding_fn_dir=cfg.models.fine.num_encoding_fn_dir,
+            num_encoding_fn_ldmks=cfg.models.coarse.num_encoding_fn_ldmks,
             include_input_xyz=cfg.models.fine.include_input_xyz,
             include_input_dir=cfg.models.fine.include_input_dir,
+            include_input_ldmks=cfg.models.coarse.include_input_ldmks,
             use_viewdirs=cfg.models.fine.use_viewdirs,
             num_layers=cfg.models.coarse.num_layers,
             hidden_size=cfg.models.coarse.hidden_size,
@@ -362,6 +372,7 @@ def main():
                 mode="train",
                 encode_position_fn=encode_position_fn,
                 encode_direction_fn=encode_direction_fn,
+                encode_ldmks_fn=encode_ldmks_fn,
                 expressions=expressions_target,
                 background_prior=background_ray_values,
                 landmarks3d=landmarks3d_target,
@@ -499,6 +510,7 @@ def main():
                             mode="validation",
                             encode_position_fn=encode_position_fn,
                             encode_direction_fn=encode_direction_fn,
+                            encode_ldmks_fn=encode_ldmks_fn,
                             expressions=expressions_target,
                             # send all the background to generate the test image
                             background_prior=background_img.view(-1, 3) if cfg.dataset.fix_background else None,

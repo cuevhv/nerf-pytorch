@@ -265,8 +265,10 @@ class FlexibleNeRFaceModel(torch.nn.Module):
         skip_connect_every: int = 4,
         num_encoding_fn_xyz: int = 6,
         num_encoding_fn_dir: int = 4,
+        num_encoding_fn_ldmks: int = 4,
         include_input_xyz: bool = True,
         include_input_dir: bool = True,
+        include_input_ldmks: bool = True,
         use_viewdirs: bool = True,
         use_expression: bool = True,
         use_landmarks3d: bool = True,
@@ -279,6 +281,7 @@ class FlexibleNeRFaceModel(torch.nn.Module):
 
         include_input_xyz = 3 if include_input_xyz else 0
         include_input_dir = 3 if include_input_dir else 0
+        include_input_ldmks = 1 if include_input_ldmks else 0
         
         # TODO: change expression and lanrmsrks3d value to depend on cfg
         include_expresion = 50 if use_expression else 0
@@ -295,7 +298,7 @@ class FlexibleNeRFaceModel(torch.nn.Module):
         self.dim_xyz = include_input_xyz + 2 * 3 * num_encoding_fn_xyz
         self.dim_dir = include_input_dir + 2 * 3 * num_encoding_fn_dir
         self.dim_expression = include_expresion
-        self.dim_landmarks3d = include_landmarks3d + 2 * include_landmarks3d * num_encoding_fn_dir + include_landmarks3d * 3
+        self.dim_landmarks3d = include_input_ldmks*include_landmarks3d + 2 * include_landmarks3d * num_encoding_fn_ldmks + 68*3
         self.dim_appearance_codes = embedding_vector_dim if use_appearance_code else 0
         self.dim_deformation_codes = embedding_vector_dim if use_deformation_code else 0 
 
@@ -385,8 +388,10 @@ class FaceNerfPaperNeRFModel(torch.nn.Module):
         skip_connect_every=4,
         num_encoding_fn_xyz=6,
         num_encoding_fn_dir=4,
+        num_encoding_fn_ldmks=4,
         include_input_xyz=True,
         include_input_dir=True,
+        include_input_ldmks=True,
         use_viewdirs=True,
         use_expression=True,
         use_landmarks3d: bool = True,
@@ -400,6 +405,7 @@ class FaceNerfPaperNeRFModel(torch.nn.Module):
 
         include_input_xyz = 3 if include_input_xyz else 0
         include_input_dir = 3 if include_input_dir else 0
+        include_input_ldmks = 1 if include_input_ldmks else 0
 
         include_expression = 50 if use_expression else 0
         include_landmarks3d = 68 if use_landmarks3d else 0
@@ -407,7 +413,7 @@ class FaceNerfPaperNeRFModel(torch.nn.Module):
         self.dim_xyz = include_input_xyz + 2 * 3 * num_encoding_fn_xyz
         self.dim_dir = include_input_dir + 2 * 3 * num_encoding_fn_dir
         self.dim_expression = include_expression# + 2 * 3 * num_encoding_fn_expr
-        self.dim_landmarks3d = include_landmarks3d + 2 * include_landmarks3d * num_encoding_fn_dir + include_landmarks3d * 3
+        self.dim_landmarks3d = include_input_ldmks*include_landmarks3d + 2 * include_landmarks3d * num_encoding_fn_ldmks + 68*3
         
         # add appearance code
         self.use_appearance_code = use_appearance_code
