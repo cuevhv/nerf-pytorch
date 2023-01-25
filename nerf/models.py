@@ -276,6 +276,7 @@ class FlexibleNeRFaceModel(torch.nn.Module):
         use_deformation_code: bool =True,
         num_train_images: int = 0,
         embedding_vector_dim: int = 32,  # based on nerface
+        landmarks3d_last: bool = False,
     ):
         super(FlexibleNeRFaceModel, self).__init__()
 
@@ -286,6 +287,8 @@ class FlexibleNeRFaceModel(torch.nn.Module):
         # TODO: change expression and lanrmsrks3d value to depend on cfg
         include_expresion = 50 if use_expression else 0
         include_landmarks3d = 68 if use_landmarks3d else 0
+
+        self.landmarks3d_last = landmarks3d_last
 
         # add appearance code
         self.use_appearance_code = use_appearance_code
@@ -308,22 +311,32 @@ class FlexibleNeRFaceModel(torch.nn.Module):
         if not use_viewdirs:
             self.dim_dir = 0
 
-        self.layer1 = torch.nn.Linear(self.dim_landmarks3d+self.dim_xyz+self.dim_expression+self.dim_deformation_codes, hidden_size)
+        # dim of the first input group to predict the density
+        input_density_dim = self.dim_xyz + self.dim_expression + self.dim_deformation_codes
+        if not landmarks3d_last:
+            input_density_dim += self.dim_landmarks3d
+
+        self.layer1 = torch.nn.Linear(input_density_dim, hidden_size)
         self.layers_xyz = torch.nn.ModuleList()
         for i in range(num_layers - 1):
             if i % self.skip_connect_every == 0 and i > 0 and i != num_layers - 1:
                 self.layers_xyz.append(
-                    torch.nn.Linear(self.dim_landmarks3d+self.dim_xyz+self.dim_expression + self.dim_deformation_codes + hidden_size, hidden_size)
+                    torch.nn.Linear(input_density_dim + hidden_size, hidden_size)
                 )
             else:
                 self.layers_xyz.append(torch.nn.Linear(hidden_size, hidden_size))
 
         self.use_viewdirs = use_viewdirs
         if self.use_viewdirs:
+            # dim of the second input group to predict the color
+            input_color_dim = self.dim_dir + self.dim_appearance_codes
+            if landmarks3d_last:
+                input_color_dim += self.dim_landmarks3d
+
             self.layers_dir = torch.nn.ModuleList()
             # This deviates from the original paper, and follows the code release instead.
             self.layers_dir.append(
-                torch.nn.Linear(self.dim_dir + self.dim_appearance_codes + hidden_size, hidden_size // 2)
+                torch.nn.Linear(input_color_dim + hidden_size, hidden_size // 2)
             )
 
             self.fc_alpha = torch.nn.Linear(hidden_size, 1)
@@ -336,7 +349,10 @@ class FlexibleNeRFaceModel(torch.nn.Module):
 
     def forward(self, x, expression=None, appearance_codes=None, deformation_codes=None):
         if self.use_landmarks3d:
-            xyz, dirs = x[..., : self.dim_landmarks3d+self.dim_xyz], x[..., self.dim_landmarks3d+self.dim_xyz :]
+            if not self.landmarks3d_last:
+                xyz, dirs = x[..., : self.dim_landmarks3d+self.dim_xyz], x[..., self.dim_landmarks3d+self.dim_xyz :]
+            else:
+                xyz, dirs = x[..., : self.dim_xyz], x[..., self.dim_xyz :]
         elif self.use_viewdirs:
             xyz, dirs = x[..., : self.dim_xyz], x[..., self.dim_xyz :]
         else:
@@ -398,7 +414,8 @@ class FaceNerfPaperNeRFModel(torch.nn.Module):
         use_appearance_code: bool =True,
         use_deformation_code: bool = True,
         num_train_images: int = 0,
-        embedding_vector_dim=32
+        embedding_vector_dim=32,
+        landmarks3d_last=False,
 
     ):
         super(FaceNerfPaperNeRFModel, self).__init__()
@@ -409,6 +426,8 @@ class FaceNerfPaperNeRFModel(torch.nn.Module):
 
         include_expression = 50 if use_expression else 0
         include_landmarks3d = 68 if use_landmarks3d else 0
+
+        self.landmarks3d_last = landmarks3d_last
 
         self.dim_xyz = include_input_xyz + 2 * 3 * num_encoding_fn_xyz
         self.dim_dir = include_input_dir + 2 * 3 * num_encoding_fn_dir
@@ -425,17 +444,29 @@ class FaceNerfPaperNeRFModel(torch.nn.Module):
         self.layers_xyz = torch.nn.ModuleList()
         self.use_viewdirs = use_viewdirs
         self.use_landmarks3d = use_landmarks3d
-        self.layers_xyz.append(torch.nn.Linear(self.dim_landmarks3d + self.dim_xyz + self.dim_expression + self.dim_deformation_codes, 256))
+
+        # dim of the first input group to predict the density
+        input_density_dim = self.dim_xyz + self.dim_expression + self.dim_deformation_codes
+        if not landmarks3d_last:
+            input_density_dim += self.dim_landmarks3d
+
+        self.layers_xyz.append(torch.nn.Linear(input_density_dim, 256))
         for i in range(1, 6):
             if i == 3:
-                self.layers_xyz.append(torch.nn.Linear(self.dim_landmarks3d + self.dim_xyz + self.dim_expression + self.dim_deformation_codes + 256, 256))
+                self.layers_xyz.append(torch.nn.Linear(input_density_dim + 256, 256))
             else:
                 self.layers_xyz.append(torch.nn.Linear(256, 256))
         self.fc_feat = torch.nn.Linear(256, 256)
         self.fc_alpha = torch.nn.Linear(256, 1)
 
         self.layers_dir = torch.nn.ModuleList()
-        self.layers_dir.append(torch.nn.Linear(256 + self.dim_dir + self.dim_appearance_codes, 128))
+
+        # dim of the second input group to predict the color
+        input_color_dim = self.dim_dir + self.dim_appearance_codes
+        if landmarks3d_last:
+            input_color_dim += self.dim_landmarks3d
+
+        self.layers_dir.append(torch.nn.Linear(256 + input_color_dim, 128))
         for i in range(3):
             self.layers_dir.append(torch.nn.Linear(128, 128))
         self.fc_rgb = torch.nn.Linear(128, 3)
@@ -443,7 +474,10 @@ class FaceNerfPaperNeRFModel(torch.nn.Module):
 
     def forward(self, x,  expression=None, appearance_codes=None, deformation_codes=None, **kwargs):
         if self.use_landmarks3d:
-            xyz, dirs = x[..., : self.dim_landmarks3d+self.dim_xyz], x[..., self.dim_landmarks3d+self.dim_xyz :]
+            if not self.landmarks3d_last:
+                xyz, dirs = x[..., : self.dim_landmarks3d+self.dim_xyz], x[..., self.dim_landmarks3d+self.dim_xyz :]
+            else:
+                xyz, dirs = x[..., : self.dim_xyz], x[..., self.dim_xyz :]
         elif self.use_viewdirs:
             xyz, dirs = x[..., : self.dim_xyz], x[..., self.dim_xyz :]
         else:
