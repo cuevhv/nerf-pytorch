@@ -42,6 +42,8 @@ dataset:
   fix_background: True
   # use landmarks3d
   use_landmarks3d: True
+  # ldmks for color prediction
+  landmarks3d_last: True
   # sample more points inside bbox
   sample_inside_bbox: True
   # appearance code at for the last part of the network
