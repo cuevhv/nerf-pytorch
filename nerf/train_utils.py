@@ -16,7 +16,7 @@ def get_pts_landmarks3d_dist(pts, landmarks3d):
     dist = pts[:, None] - landmarks3d[None, :]
     norm = torch.linalg.norm(dist, axis=-1)  # [N, K, 3] = N, K
     dist = dist/norm[:, :, None]
-    return norm, dist.reshape(pts.shape[0], -1) # [N,K], [N, K*3]
+    return norm, dist #.reshape(pts.shape[0], -1) # [N,K], [N, K*3]
     #return dist.reshape(pts.shape[0], -1)  # [N, K, 3] -> [N, K*3]
 
 
@@ -41,11 +41,12 @@ def run_network(network_fn, pts, ray_batch, chunksize, embed_fn, embeddirs_fn, e
             tau = 100  # sharpness
             threshold_dist = 0.09  # threshold distance
             cutoff_w = 1-torch.sigmoid(tau*(dist_pts_lndmks3d-threshold_dist))
+            # dir_pts_ldmks3d = dir_pts_ldmks3d*cutoff_w[:,:,None]
             # p_np = cutoff_w.min(axis=-1)[0].detach().cpu().numpy()
         else:
             cutoff_w = None
         embed_dists = embedldmks_fn(dist_pts_lndmks3d, cutoff_w, cutoff_type)
-        
+        dir_pts_ldmks3d = dir_pts_ldmks3d.reshape(pts_flat.shape[0], -1)
         embedded = torch.cat((embed_dists, dir_pts_ldmks3d, embedded), dim=-1)
     batches = get_minibatches(embedded, chunksize=chunksize)
 
