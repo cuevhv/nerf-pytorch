@@ -171,6 +171,7 @@ def main():
         use_appearance_code=cfg.dataset.use_appearance_code,
         use_deformation_code=cfg.dataset.use_deformation_code,
         num_train_images=len(i_train),
+        landmarks3d_last=cfg.dataset.landmarks3d_last,
     )
     model_coarse.to(device)
     # If a fine-resolution model is specified, initialize it.
@@ -191,6 +192,7 @@ def main():
             use_appearance_code=cfg.dataset.use_appearance_code,
             use_deformation_code=cfg.dataset.use_deformation_code,
             num_train_images=len(i_train),
+            landmarks3d_last=cfg.dataset.landmarks3d_last,
         )
         model_fine.to(device)
 
