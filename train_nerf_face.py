@@ -172,6 +172,7 @@ def main():
         use_deformation_code=cfg.dataset.use_deformation_code,
         num_train_images=len(i_train),
         landmarks3d_last=cfg.dataset.landmarks3d_last,
+        encode_ldmks3d=cfg.dataset.encode_ldmks3d,
     )
     model_coarse.to(device)
     # If a fine-resolution model is specified, initialize it.
@@ -193,6 +194,7 @@ def main():
             use_deformation_code=cfg.dataset.use_deformation_code,
             num_train_images=len(i_train),
             landmarks3d_last=cfg.dataset.landmarks3d_last,
+            encode_ldmks3d=cfg.dataset.encode_ldmks3d,
         )
         model_fine.to(device)
 

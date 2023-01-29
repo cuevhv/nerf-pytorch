@@ -416,6 +416,7 @@ class FaceNerfPaperNeRFModel(torch.nn.Module):
         num_train_images: int = 0,
         embedding_vector_dim=32,
         landmarks3d_last=False,
+        encode_ldmks3d=False,
 
     ):
         super(FaceNerfPaperNeRFModel, self).__init__()
@@ -433,7 +434,17 @@ class FaceNerfPaperNeRFModel(torch.nn.Module):
         self.dim_dir = include_input_dir + 2 * 3 * num_encoding_fn_dir
         self.dim_expression = include_expression# + 2 * 3 * num_encoding_fn_expr
         self.dim_landmarks3d = include_input_ldmks*include_landmarks3d + 2 * include_landmarks3d * num_encoding_fn_ldmks + 68*3
-        
+        self.dim_full_landmarks3d = self.dim_landmarks3d
+
+        self.encode_ldmks3d = encode_ldmks3d
+        if self.encode_ldmks3d:
+            self.layers_ldmks3d_enc = torch.nn.ModuleList()
+            self.layers_ldmks3d_enc.append(torch.nn.Linear(self.dim_landmarks3d+self.dim_xyz, 128))
+            self.layers_ldmks3d_enc.append(torch.nn.Linear(128, 128))
+            self.layers_ldmks3d_enc.append(torch.nn.Linear(128, self.dim_xyz))
+            torch.nn.init.uniform_(self.layers_ldmks3d_enc[-1].weight, a=-1e-4, b=1e-4)
+            self.dim_landmarks3d = 0
+
         # add appearance code
         self.use_appearance_code = use_appearance_code
         self.use_deformation_code = use_deformation_code
@@ -475,7 +486,14 @@ class FaceNerfPaperNeRFModel(torch.nn.Module):
     def forward(self, x,  expression=None, appearance_codes=None, deformation_codes=None, **kwargs):
         if self.use_landmarks3d:
             if not self.landmarks3d_last:
-                xyz, dirs = x[..., : self.dim_landmarks3d+self.dim_xyz], x[..., self.dim_landmarks3d+self.dim_xyz :]
+                xyz, dirs = x[..., : self.dim_full_landmarks3d+self.dim_xyz], x[..., self.dim_full_landmarks3d+self.dim_xyz :]
+                if self.encode_ldmks3d:
+                    xyz_pts = xyz[..., :self.dim_xyz]
+                    for i in range(len(self.layers_ldmks3d_enc)):
+                        xyz = self.layers_ldmks3d_enc[i](xyz)
+                        if i < len(self.layers_ldmks3d_enc)-1:
+                            xyz = self.relu(xyz)
+                    xyz = xyz + xyz_pts
             else:
                 xyz, dirs = x[..., : self.dim_xyz], x[..., self.dim_xyz :]
         elif self.use_viewdirs:
@@ -519,3 +537,19 @@ class FaceNerfPaperNeRFModel(torch.nn.Module):
             x = self.relu(x)
         rgb = self.fc_rgb(x)
         return torch.cat((rgb, alpha), dim=-1)
+
+
+class translation_field(torch.nn.Module):
+    def __init__(self, mlp_depth, mlp_dim, hidden_init, output_init, skips) -> None:
+        super(translation_field).__init__()
+        self.skips = skips
+        self.mlp_layers = torch.nn.ModuleList()
+        
+        self.mlp_layers.append(torch.nn.Linear(mlp_dim, 256))
+        for i in range(1, mlp_depth):
+            if i in skips:
+                self.mlp_layers.append(torch.nn.Linear(mlp_dim + 256, 256))
+            else:
+                self.mlp_layers.append(torch.nn.Linear(256, 256))
+    def forward(self):
+        return None
