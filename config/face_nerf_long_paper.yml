@@ -43,7 +43,7 @@ dataset:
   # use landmarks3d
   use_landmarks3d: True
   # ldmks for color prediction
-  landmarks3d_last: True
+  landmarks3d_last: False
   # sample more points inside bbox
   sample_inside_bbox: True
   # appearance code at for the last part of the network
@@ -54,6 +54,8 @@ dataset:
   use_ldmks_dist: False
   # cut off distance between ldmks and samples None only_sincos all
   cutoff_type: only_sincos
+  # encode(landmarks3d-dist, PE(xyz)) and add to the PE(xyz) input
+  encode_ldmks3d: True
 
 # Model parameters.
 models:
