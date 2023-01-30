@@ -301,7 +301,7 @@ class FlexibleNeRFaceModel(torch.nn.Module):
         self.dim_xyz = include_input_xyz + 2 * 3 * num_encoding_fn_xyz
         self.dim_dir = include_input_dir + 2 * 3 * num_encoding_fn_dir
         self.dim_expression = include_expresion
-        self.dim_landmarks3d = include_input_ldmks*include_landmarks3d + 2 * include_landmarks3d * num_encoding_fn_ldmks + 68*3
+        self.dim_landmarks3d = include_input_ldmks*include_landmarks3d + 2 * include_landmarks3d * num_encoding_fn_ldmks + include_landmarks3d*3
         self.dim_appearance_codes = embedding_vector_dim if use_appearance_code else 0
         self.dim_deformation_codes = embedding_vector_dim if use_deformation_code else 0 
 
@@ -433,7 +433,7 @@ class FaceNerfPaperNeRFModel(torch.nn.Module):
         self.dim_xyz = include_input_xyz + 2 * 3 * num_encoding_fn_xyz
         self.dim_dir = include_input_dir + 2 * 3 * num_encoding_fn_dir
         self.dim_expression = include_expression# + 2 * 3 * num_encoding_fn_expr
-        self.dim_landmarks3d = include_input_ldmks*include_landmarks3d + 2 * include_landmarks3d * num_encoding_fn_ldmks + 68*3
+        self.dim_landmarks3d = include_input_ldmks*include_landmarks3d + 2 * include_landmarks3d * num_encoding_fn_ldmks + include_landmarks3d*3
         self.dim_full_landmarks3d = self.dim_landmarks3d
 
         self.encode_ldmks3d = encode_ldmks3d
