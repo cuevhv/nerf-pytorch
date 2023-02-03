@@ -22,7 +22,7 @@ def get_pts_landmarks3d_dist(pts, landmarks3d):
 
 def run_network(network_fn, pts, ray_batch, chunksize, embed_fn, embeddirs_fn, embedldmks_fn,
                 expressions=None, landmarks3d=None, appearance_codes=None, deformation_codes=None,
-                cutoff_type=None):
+                cutoff_type=None, embed_face_body=False):
 
     pts_flat = pts.reshape((-1, pts.shape[-1]))
     embedded = embed_fn(pts_flat, None, None)
@@ -42,7 +42,13 @@ def run_network(network_fn, pts, ray_batch, chunksize, embed_fn, embeddirs_fn, e
             threshold_dist = 0.09  # threshold distance
             cutoff_w = 1-torch.sigmoid(tau*(dist_pts_lndmks3d-threshold_dist))
             # dir_pts_ldmks3d = dir_pts_ldmks3d*cutoff_w[:,:,None]
-            # p_np = cutoff_w.min(axis=-1)[0].detach().cpu().numpy()
+            # p_np = cutoff_w.min(axis=-1)[0].detach().cpu().numpy()            
+            if embed_face_body:
+                highest_cutoff_w = cutoff_w.max(axis=-1)[0]
+                thr_deform_codes = highest_cutoff_w > 0.5
+                proc_deformation_codes = torch.zeros((embedded.shape[0], deformation_codes.shape[0])).to(deformation_codes.device)
+                proc_deformation_codes[thr_deform_codes, :deformation_codes.shape[0]//2] += deformation_codes[:deformation_codes.shape[0]//2]
+                proc_deformation_codes[~thr_deform_codes, deformation_codes.shape[0]//2:] += deformation_codes[deformation_codes.shape[0]//2:]
         else:
             cutoff_w = None
         embed_dists = embedldmks_fn(dist_pts_lndmks3d, cutoff_w, cutoff_type)
@@ -50,10 +56,18 @@ def run_network(network_fn, pts, ray_batch, chunksize, embed_fn, embeddirs_fn, e
         embedded = torch.cat((embed_dists, dir_pts_ldmks3d, embedded), dim=-1)
     batches = get_minibatches(embedded, chunksize=chunksize)
 
-    if expressions is None:
-        preds = [network_fn(batch, appearance_codes=appearance_codes, deformation_codes=deformation_codes) for batch in batches]
+    if embed_face_body:
+        deform_codes = get_minibatches(proc_deformation_codes, chunksize=chunksize)
+        cutoff_ws = get_minibatches(highest_cutoff_w, chunksize=chunksize)
+        if expressions is None:
+            preds = [network_fn(batch, appearance_codes=appearance_codes, deformation_codes=deform_codes[i], cutoff_ws=cutoff_ws[i]) for i, batch in enumerate(batches)]
+        else:
+            preds = [network_fn(batch, expressions, appearance_codes=appearance_codes, deformation_codes=deform_codes[i], cutoff_ws=cutoff_ws[i]) for i, batch in enumerate(batches)]
     else:
-        preds = [network_fn(batch, expressions, appearance_codes=appearance_codes, deformation_codes=deformation_codes) for batch in batches]
+        if expressions is None:
+            preds = [network_fn(batch, appearance_codes=appearance_codes, deformation_codes=deformation_codes) for batch in batches]
+        else:
+            preds = [network_fn(batch, expressions, appearance_codes=appearance_codes, deformation_codes=deformation_codes) for batch in batches]
     
     radiance_field = torch.cat(preds, dim=0)
     radiance_field = radiance_field.reshape(
@@ -78,6 +92,7 @@ def predict_and_render_radiance(
     deformation_codes=None,
     use_ldmks_dist=False,
     cutoff_type=None,
+    embed_face_body=False,
 ):
     # TESTED
     num_rays = ray_batch.shape[0]
@@ -123,6 +138,7 @@ def predict_and_render_radiance(
         appearance_codes=appearance_codes,
         deformation_codes=deformation_codes,
         cutoff_type=cutoff_type,
+        embed_face_body=embed_face_body,
     )
     if background_prior is not None:
         # make the last sample of the ray be equal to the background
@@ -196,6 +212,7 @@ def predict_and_render_radiance(
             appearance_codes=appearance_codes,
             deformation_codes=deformation_codes,
             cutoff_type=cutoff_type,
+            embed_face_body=embed_face_body,
         )
 
         if background_prior is not None:
@@ -287,6 +304,7 @@ def run_one_iter_of_nerf(
     deformation_codes=None,
     use_ldmks_dist=False,
     cutoff_type=None,
+    embed_face_body=False,
 ):
     viewdirs = None
     if options.nerf.use_viewdirs:
@@ -336,6 +354,7 @@ def run_one_iter_of_nerf(
             deformation_codes=deformation_codes,
             use_ldmks_dist=use_ldmks_dist,
             cutoff_type=cutoff_type,
+            embed_face_body=embed_face_body,
         )
         for i, batch in enumerate(batches)
     ]

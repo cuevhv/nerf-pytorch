@@ -226,7 +226,9 @@ def main():
         trainable_parameters.append(appearance_codes)
     
     if cfg.dataset.use_deformation_code:
-        deformation_codes = (torch.randn(len(i_train), 32, device=device)*0.1).requires_grad_()
+        deform_size = 32
+        deformation_codes = torch.zeros(len(i_train), deform_size, device=device).requires_grad_()
+        # deformation_codes = (torch.randn(len(i_train), 32, device=device)*0.1).requires_grad_()
         print("initialized latent codes with shape %d X %d" % (deformation_codes.shape[0], deformation_codes.shape[1]))
         trainable_parameters.append(deformation_codes)
     
@@ -384,6 +386,7 @@ def main():
                 deformation_codes=deformation_codes[img_idx].to(device) if cfg.dataset.use_deformation_code else None,
                 use_ldmks_dist=cfg.dataset.use_ldmks_dist,
                 cutoff_type=None if cfg.dataset.cutoff_type == "None" else cfg.dataset.cutoff_type,
+                embed_face_body=cfg.dataset.embed_face_body,
             )
             target_ray_values = target_s
 
@@ -406,7 +409,11 @@ def main():
         # loss = loss_nerf
 
         if cfg.optimizer.appearance_code and cfg.dataset.use_appearance_code:
-            loss_appearance_codes = torch.linalg.norm(appearance_codes[img_idx])
+            if cfg.dataset.embed_face_body:
+                loss_appearance_codes = torch.linalg.norm(appearance_codes[img_idx, :deform_size//2]) + \
+                                                torch.linalg.norm(appearance_codes[img_idx, deform_size//2:])
+            else:
+                loss_appearance_codes = torch.linalg.norm(appearance_codes[img_idx])
             # loss = loss + 0.005*loss_appearance_codes
         
         if cfg.optimizer.deformation_code and cfg.dataset.use_deformation_code:
@@ -436,6 +443,8 @@ def main():
                 + str(loss_nerf.item())
                 + " PSNR: "
                 + str(psnr)
+                + "appearance: "
+                + str(loss_appearance_codes.item())
             )
         writer.add_scalar("train/loss", loss_nerf.item(), i)
         writer.add_scalar("train/coarse_loss", coarse_loss.item(), i)
@@ -523,6 +532,7 @@ def main():
                             deformation_codes=deformation_codes[0].to(device) if cfg.dataset.use_deformation_code else None,
                             use_ldmks_dist=cfg.dataset.use_ldmks_dist,
                             cutoff_type=None if cfg.dataset.cutoff_type == "None" else cfg.dataset.cutoff_type,
+                            embed_face_body=cfg.dataset.embed_face_body,
                         )
                         target_ray_values = img_target
                     coarse_loss = img2mse(rgb_coarse[..., :3], target_ray_values[..., :3])
