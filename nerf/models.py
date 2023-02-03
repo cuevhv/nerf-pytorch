@@ -488,7 +488,7 @@ class FaceNerfPaperNeRFModel(torch.nn.Module):
             if not self.landmarks3d_last:
                 xyz, dirs = x[..., : self.dim_full_landmarks3d+self.dim_xyz], x[..., self.dim_full_landmarks3d+self.dim_xyz :]
                 if self.encode_ldmks3d:
-                    xyz_pts = xyz[..., :self.dim_xyz]
+                    xyz_pts = xyz[..., self.dim_full_landmarks3d :]
                     for i in range(len(self.layers_ldmks3d_enc)):
                         xyz = self.layers_ldmks3d_enc[i](xyz)
                         if i < len(self.layers_ldmks3d_enc)-1:
