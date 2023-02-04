@@ -409,15 +409,15 @@ def main():
         # loss = loss_nerf
 
         if cfg.optimizer.appearance_code and cfg.dataset.use_appearance_code:
-            if cfg.dataset.embed_face_body:
-                loss_appearance_codes = torch.linalg.norm(appearance_codes[img_idx, :deform_size//2]) + \
-                                                torch.linalg.norm(appearance_codes[img_idx, deform_size//2:])
-            else:
-                loss_appearance_codes = torch.linalg.norm(appearance_codes[img_idx])
+            loss_appearance_codes = torch.linalg.norm(appearance_codes[img_idx])
             # loss = loss + 0.005*loss_appearance_codes
         
         if cfg.optimizer.deformation_code and cfg.dataset.use_deformation_code:
-            loss_deformation_codes = torch.linalg.norm(deformation_codes[img_idx])
+            if cfg.dataset.embed_face_body:
+                loss_deformation_codes = torch.linalg.norm(deformation_codes[img_idx, :deform_size//2]) + \
+                                                torch.linalg.norm(deformation_codes[img_idx, deform_size//2:])
+            else:
+                loss_deformation_codes = torch.linalg.norm(deformation_codes[img_idx])
             # loss = loss + 0.005*loss_deformation_codes
             
         loss = loss_nerf + 0.005*loss_appearance_codes + 0.005*loss_deformation_codes
@@ -443,8 +443,8 @@ def main():
                 + str(loss_nerf.item())
                 + " PSNR: "
                 + str(psnr)
-                + "appearance: "
-                + str(loss_appearance_codes.item())
+                + " deformation: "
+                + str(loss_deformation_codes.item() if cfg.optimizer.deformation_code else 0)
             )
         writer.add_scalar("train/loss", loss_nerf.item(), i)
         writer.add_scalar("train/coarse_loss", coarse_loss.item(), i)
