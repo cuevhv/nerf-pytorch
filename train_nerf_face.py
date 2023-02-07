@@ -45,6 +45,8 @@ def main():
         cfg_dict = yaml.load(f, Loader=yaml.FullLoader)
         cfg = CfgNode(cfg_dict)
 
+    if cfg.dataset.embed_face_body_separately:
+        assert cfg.dataset.embed_face_body, "embed_face_body parameter has to be True"
     # # (Optional:) enable this to track autograd issues when debugging
     # torch.autograd.set_detect_anomaly(True)
 
@@ -173,6 +175,7 @@ def main():
         num_train_images=len(i_train),
         landmarks3d_last=cfg.dataset.landmarks3d_last,
         encode_ldmks3d=cfg.dataset.encode_ldmks3d,
+        embedding_vector_dim=cfg.dataset.embedding_vector_dim,
     )
     model_coarse.to(device)
     # If a fine-resolution model is specified, initialize it.
@@ -195,6 +198,7 @@ def main():
             num_train_images=len(i_train),
             landmarks3d_last=cfg.dataset.landmarks3d_last,
             encode_ldmks3d=cfg.dataset.encode_ldmks3d,
+            embedding_vector_dim=cfg.dataset.embedding_vector_dim,
         )
         model_fine.to(device)
 
@@ -220,13 +224,13 @@ def main():
     
     if cfg.dataset.use_appearance_code:
         # appearance_codes = torch.zeros(len(i_train), 32, device=device).requires_grad_()
-        appearance_codes = (torch.randn(len(i_train), 32, device=device)*0.1).requires_grad_()
+        appearance_codes = (torch.randn(len(i_train), cfg.dataset.embedding_vector_dim, device=device)*0.1).requires_grad_()
         print("initialized latent codes with shape %d X %d" % (appearance_codes.shape[0], appearance_codes.shape[1]))
         # appearance_codes.requires_grad = True
         trainable_parameters.append(appearance_codes)
     
     if cfg.dataset.use_deformation_code:
-        deform_size = 32
+        deform_size = cfg.dataset.embedding_vector_dim
         deformation_codes = torch.zeros(len(i_train), deform_size, device=device).requires_grad_()
         # deformation_codes = (torch.randn(len(i_train), 32, device=device)*0.1).requires_grad_()
         print("initialized latent codes with shape %d X %d" % (deformation_codes.shape[0], deformation_codes.shape[1]))
@@ -387,6 +391,7 @@ def main():
                 use_ldmks_dist=cfg.dataset.use_ldmks_dist,
                 cutoff_type=None if cfg.dataset.cutoff_type == "None" else cfg.dataset.cutoff_type,
                 embed_face_body=cfg.dataset.embed_face_body,
+                embed_face_body_separately=cfg.dataset.embed_face_body_separately,
             )
             target_ray_values = target_s
 
@@ -533,6 +538,7 @@ def main():
                             use_ldmks_dist=cfg.dataset.use_ldmks_dist,
                             cutoff_type=None if cfg.dataset.cutoff_type == "None" else cfg.dataset.cutoff_type,
                             embed_face_body=cfg.dataset.embed_face_body,
+                            embed_face_body_separately=cfg.dataset.embed_face_body_separately,
                         )
                         target_ray_values = img_target
                     coarse_loss = img2mse(rgb_coarse[..., :3], target_ray_values[..., :3])
