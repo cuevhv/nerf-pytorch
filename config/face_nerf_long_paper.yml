@@ -52,6 +52,10 @@ dataset:
   use_deformation_code: True
   # split deformation code to embed face and body/background separaterly
   embed_face_body: True
+  # encode(landmarks3d-dist, PE(xyz)) and add to the PE(xyz) input
+  embed_face_body_separately: True
+  # Embedding vector dim for deformation and appearance codes
+  embedding_vector_dim: 32
   # use distance between landmarks and sample points
   use_ldmks_dist: False
   # cut off distance between ldmks and samples None only_sincos all
@@ -64,7 +68,7 @@ models:
   # Coarse model.
   coarse:
     # Name of the torch.nn.Module class that implements the model.
-    type: FaceNerfPaperNeRFModelCond #FlexibleNeRFaceModel
+    type: FaceNerfPaperNeRFModelDualCond #FlexibleNeRFaceModel
     # Number of layers in the model.
     num_layers: 8
     # Number of hidden units in each layer of the MLP (multi-layer
@@ -85,7 +89,7 @@ models:
     # Additionally use viewing directions as input.
     use_viewdirs: True
     # Whether to include the direction itself in its positional encoding.
-    include_input_dir: True
+    include_input_dir: False
     # Number of encoding functions to use in the positional encoding
     # of the direction.
     num_encoding_fn_dir: 4
@@ -93,7 +97,7 @@ models:
     # of the direction.
     log_sampling_dir: True
     # Whether to include the landmarks distance itself in its positional encoding.
-    include_input_ldmks: True
+    include_input_ldmks: False
     # Number of encoding functions to use in the positional encoding
     # of the direction.
     num_encoding_fn_ldmks: 4
@@ -104,7 +108,7 @@ models:
   # Fine model.
   fine:
     # Name of the torch.nn.Module class that implements the model.
-    type: FaceNerfPaperNeRFModelCond #FlexibleNeRFaceModel
+    type: FaceNerfPaperNeRFModelDualCond #FlexibleNeRFaceModel
     # Number of layers in the model.
     num_layers: 8
     # Number of hidden units in each layer of the MLP (multi-layer
@@ -125,7 +129,7 @@ models:
     # Additionally use viewing directions as input.
     use_viewdirs: True
     # Whether to include the direction itself in its positional encoding.
-    include_input_dir: True
+    include_input_dir: False
     # Number of encoding functions to use in the positional encoding of
     # the direction.
     num_encoding_fn_dir: 4
