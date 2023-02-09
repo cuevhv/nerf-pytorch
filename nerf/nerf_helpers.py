@@ -2,6 +2,7 @@ import math
 from typing import Optional
 
 import torch
+import numpy as np
 
 # import torchsearchsorted
 
@@ -111,7 +112,7 @@ def get_ray_bundle(
 
 
 def positional_encoding(
-    tensor, num_encoding_functions=6, include_input=True, log_sampling=True, weights=None, cutoff_type=None,
+    tensor, num_encoding_functions=6, include_input=True, log_sampling=True, weights=None, cutoff_type=None, barf_progress=None,
 ) -> torch.Tensor:
     r"""Apply positional encoding to the input.
 
@@ -154,12 +155,20 @@ def positional_encoding(
             dtype=tensor.dtype,
             device=tensor.device,
         )
-    for freq in frequency_bands:
+    for i, freq in enumerate(frequency_bands):
         for func in [torch.sin, torch.cos]:
-            if cutoff_type == "only_sincos" and weights is not None:
-                encoding.append(w*func(tensor * freq))
+            if barf_progress is not None:
+                start, end = 0.1, 0.5
+                # (1-np.cos((alpha-np.arange(10)).clip(min=0,max=1)*np.pi))/2
+                alpha = (barf_progress-start)/(end-start)*num_encoding_functions
+                barf_weight = (1-np.cos(np.clip((alpha-i), a_min=0,a_max=1)*np.pi))/2
             else:
-                encoding.append(func(tensor * freq))
+                barf_weight = 1.
+            
+            if cutoff_type == "only_sincos" and weights is not None:
+                encoding.append(barf_weight*w*func(tensor * freq))
+            else:
+                encoding.append(barf_weight*func(tensor * freq))
 
     # Special case, for no positional encoding
     if len(encoding) == 1:
@@ -169,12 +178,12 @@ def positional_encoding(
 
 
 def get_embedding_function(
-    num_encoding_functions=6, include_input=True, log_sampling=True
+    num_encoding_functions=6, include_input=True, log_sampling=True,
 ):
     r"""Returns a lambda function that internally calls positional_encoding.
     """
-    return lambda x, weights, cutoff_type: positional_encoding(
-        x, num_encoding_functions, include_input, log_sampling, weights, cutoff_type,
+    return lambda x, weights, cutoff_type, barf_progress: positional_encoding(
+        x, num_encoding_functions, include_input, log_sampling, weights, cutoff_type, barf_progress,
     )
 
 
