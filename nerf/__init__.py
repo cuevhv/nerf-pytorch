@@ -7,3 +7,4 @@ from .nerf_helpers import *
 from .nerface_helpers import get_ray_bundle as get_ray_bundle_nerface
 from .train_utils import *
 from .volume_rendering_utils import *
+from .barf_utils import RefinePose
