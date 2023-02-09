@@ -41,7 +41,7 @@ dataset:
   # fix background
   fix_background: True
   # use landmarks3d
-  use_landmarks3d: True
+  use_landmarks3d: False
   # ldmks for color prediction
   landmarks3d_last: False
   # sample more points inside bbox
@@ -49,26 +49,28 @@ dataset:
   # appearance code at for the last part of the network
   use_appearance_code: False
   # deformation code at for the first part of the network
-  use_deformation_code: True
+  use_deformation_code: False
   # split deformation code to embed face and body/background separaterly
-  embed_face_body: True
+  embed_face_body: False
   # encode(landmarks3d-dist, PE(xyz)) and add to the PE(xyz) input
-  embed_face_body_separately: True
+  embed_face_body_separately: False
   # Embedding vector dim for deformation and appearance codes
   embedding_vector_dim: 32
   # use distance between landmarks and sample points
   use_ldmks_dist: False
   # cut off distance between ldmks and samples None only_sincos all
-  cutoff_type: only_sincos
+  cutoff_type: None
   # encode(landmarks3d-dist, PE(xyz)) and add to the PE(xyz) input
-  encode_ldmks3d: True
+  encode_ldmks3d: False
+  # refine pose
+  refine_pose: True
 
 # Model parameters.
 models:
   # Coarse model.
   coarse:
     # Name of the torch.nn.Module class that implements the model.
-    type: FaceNerfPaperNeRFModelDualCond #FlexibleNeRFaceModel
+    type: FaceNerfPaperNeRFModel #FlexibleNeRFaceModel
     # Number of layers in the model.
     num_layers: 8
     # Number of hidden units in each layer of the MLP (multi-layer
@@ -108,7 +110,7 @@ models:
   # Fine model.
   fine:
     # Name of the torch.nn.Module class that implements the model.
-    type: FaceNerfPaperNeRFModelDualCond #FlexibleNeRFaceModel
+    type: FaceNerfPaperNeRFModel #FlexibleNeRFaceModel
     # Number of layers in the model.
     num_layers: 8
     # Number of hidden units in each layer of the MLP (multi-layer

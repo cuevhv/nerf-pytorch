@@ -14,7 +14,7 @@ from tqdm import tqdm, trange
 from nerf import (CfgNode, get_embedding_function, get_ray_bundle, img2mse,
                   load_blender_data, load_nerface_data, load_llff_data, meshgrid_xy, models,
                   mse2psnr, run_one_iter_of_nerf,
-                  get_ray_bundle_nerface)
+                  get_ray_bundle_nerface, RefinePose)
 
 # from utils.viewer import show_dirs
 
@@ -235,6 +235,14 @@ def main():
         # deformation_codes = (torch.randn(len(i_train), 32, device=device)*0.1).requires_grad_()
         print("initialized latent codes with shape %d X %d" % (deformation_codes.shape[0], deformation_codes.shape[1]))
         trainable_parameters.append(deformation_codes)
+
+    if cfg.dataset.refine_pose:
+        refine_pose_params = torch.zeros(len(i_train), 6, device=device).requires_grad_()
+        
+        print("initialized refine pose params with shape %d X %d" % (refine_pose_params.shape[0], refine_pose_params.shape[1]))
+        trainable_parameters.append(refine_pose_params)
+        
+        
     
     optimizer = getattr(torch.optim, cfg.optimizer.type)(
         trainable_parameters, lr=cfg.optimizer.lr
@@ -261,10 +269,14 @@ def main():
             print("loading appearance codes from checkpoint")
             appearance_codes = torch.nn.Parameter(checkpoint['appearance_codes'].to(device))
         if "deformation_codes" in checkpoint and checkpoint["deformation_codes"] is not None:
-            print("loading appearance codes from checkpoint")
+            print("loading deformation codes from checkpoint")
             deformation_codes = torch.nn.Parameter(checkpoint['deformation_codes'].to(device))
+        if "refine_pose_params" in checkpoint and checkpoint["refine_pose_params"] is not None:
+            print("loading refine pose params from checkpoint")
+            refine_pose_params = torch.nn.Parameter(checkpoint['refine_pose_params'].to(device))
         
         
+
         optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
         start_iter = checkpoint["iter"]
 
@@ -278,7 +290,7 @@ def main():
     #     ray_importance_sampling_maps.append(probs.reshape(-1))
         
     for i in trange(0, cfg.experiment.train_iters):
-        if i < start_iter:
+        if i <= start_iter:
             # Trick to continue the random choice when loading the checkpoint
             # TODO: change for randomstate 
             img_idx = np.random.choice(i_train)  
@@ -329,8 +341,11 @@ def main():
             img_idx = np.random.choice(i_train)
             img_target = images[img_idx].to(device)
             pose_target = poses[img_idx, :3, :4].to(device)
-            
 
+            if cfg.dataset.refine_pose:
+                pose_target = RefinePose()(refine_pose_params[img_idx], pose_target)
+            # pose_target = compose_pair(pose_refine[img_idx], pose_target)
+            
             if expressions is not None:
                 expressions_target = expressions[img_idx].to(device)
             else:
@@ -392,6 +407,7 @@ def main():
                 cutoff_type=None if cfg.dataset.cutoff_type == "None" else cfg.dataset.cutoff_type,
                 embed_face_body=cfg.dataset.embed_face_body,
                 embed_face_body_separately=cfg.dataset.embed_face_body_separately,
+                refine_pose=i/2e5 if cfg.dataset.refine_pose else None,  # 2e5 following barf paper
             )
             target_ray_values = target_s
 
@@ -539,6 +555,7 @@ def main():
                             cutoff_type=None if cfg.dataset.cutoff_type == "None" else cfg.dataset.cutoff_type,
                             embed_face_body=cfg.dataset.embed_face_body,
                             embed_face_body_separately=cfg.dataset.embed_face_body_separately,
+                            refine_pose=i/2e5 if cfg.dataset.refine_pose else None, # 2e5 following barf paper
                         )
                         target_ray_values = img_target
                     coarse_loss = img2mse(rgb_coarse[..., :3], target_ray_values[..., :3])
@@ -606,6 +623,7 @@ def main():
                 "psnr": psnr,
                 "appearance_codes": appearance_codes.data if cfg.dataset.use_appearance_code else None,
                 "deformation_codes": deformation_codes.data if cfg.dataset.use_deformation_code else None,
+                "refine_pose_params": refine_pose_params.data if cfg.dataset.refine_pose else None,
             }
             torch.save(
                 checkpoint_dict,

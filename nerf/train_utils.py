@@ -22,15 +22,16 @@ def get_pts_landmarks3d_dist(pts, landmarks3d):
 
 def run_network(network_fn, pts, ray_batch, chunksize, embed_fn, embeddirs_fn, embedldmks_fn,
                 expressions=None, landmarks3d=None, appearance_codes=None, deformation_codes=None,
-                cutoff_type=None, embed_face_body=False, embed_face_body_separately=False):
+                cutoff_type=None, embed_face_body=False, embed_face_body_separately=False,
+                refine_pose=None):
 
     pts_flat = pts.reshape((-1, pts.shape[-1]))
-    embedded = embed_fn(pts_flat, None, None)
+    embedded = embed_fn(pts_flat, None, None, refine_pose)
     if embeddirs_fn is not None:
         viewdirs = ray_batch[..., None, -3:]
         input_dirs = viewdirs.expand(pts.shape)
         input_dirs_flat = input_dirs.reshape((-1, input_dirs.shape[-1]))
-        embedded_dirs = embeddirs_fn(input_dirs_flat, None, None)
+        embedded_dirs = embeddirs_fn(input_dirs_flat, None, None, refine_pose)
         embedded = torch.cat((embedded, embedded_dirs), dim=-1)
     
     if landmarks3d is not None:
@@ -52,7 +53,7 @@ def run_network(network_fn, pts, ray_batch, chunksize, embed_fn, embeddirs_fn, e
                     proc_deformation_codes[~thr_deform_codes, deformation_codes.shape[0]//2:] += deformation_codes[deformation_codes.shape[0]//2:]
         else:
             cutoff_w = None
-        embed_dists = embedldmks_fn(dist_pts_lndmks3d, cutoff_w, cutoff_type)
+        embed_dists = embedldmks_fn(dist_pts_lndmks3d, cutoff_w, cutoff_type, refine_pose)
         dir_pts_ldmks3d = dir_pts_ldmks3d.reshape(pts_flat.shape[0], -1)
         embedded = torch.cat((embed_dists, dir_pts_ldmks3d, embedded), dim=-1)
     batches = get_minibatches(embedded, chunksize=chunksize)
@@ -102,6 +103,7 @@ def predict_and_render_radiance(
     cutoff_type=None,
     embed_face_body=False,
     embed_face_body_separately=False,
+    refine_pose=None,
 ):
     # TESTED
     num_rays = ray_batch.shape[0]
@@ -149,6 +151,7 @@ def predict_and_render_radiance(
         cutoff_type=cutoff_type,
         embed_face_body=embed_face_body,
         embed_face_body_separately=embed_face_body_separately,
+        refine_pose=refine_pose,
     )
     if background_prior is not None:
         # make the last sample of the ray be equal to the background
@@ -224,6 +227,7 @@ def predict_and_render_radiance(
             cutoff_type=cutoff_type,
             embed_face_body=embed_face_body,
             embed_face_body_separately=embed_face_body_separately,
+            refine_pose=refine_pose,
         )
 
         if background_prior is not None:
@@ -317,6 +321,7 @@ def run_one_iter_of_nerf(
     cutoff_type=None,
     embed_face_body=False,
     embed_face_body_separately=False,
+    refine_pose=None,
 ):
     viewdirs = None
     if options.nerf.use_viewdirs:
@@ -368,6 +373,7 @@ def run_one_iter_of_nerf(
             cutoff_type=cutoff_type,
             embed_face_body=embed_face_body,
             embed_face_body_separately=embed_face_body_separately,
+            refine_pose=refine_pose,
         )
         for i, batch in enumerate(batches)
     ]
