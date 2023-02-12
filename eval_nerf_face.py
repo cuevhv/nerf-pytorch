@@ -148,6 +148,8 @@ def main():
         use_deformation_code=cfg.dataset.use_deformation_code,
         num_train_images=len(i_train),
         landmarks3d_last=cfg.dataset.landmarks3d_last,
+        encode_ldmks3d=cfg.dataset.encode_ldmks3d,
+        embedding_vector_dim=cfg.dataset.embedding_vector_dim,
     )
     model_coarse.to(device)
     # If a fine-resolution model is specified, initialize it.
@@ -169,6 +171,8 @@ def main():
             use_deformation_code=cfg.dataset.use_deformation_code,
             num_train_images=len(i_train),
             landmarks3d_last=cfg.dataset.landmarks3d_last,
+            encode_ldmks3d=cfg.dataset.encode_ldmks3d,
+            embedding_vector_dim=cfg.dataset.embedding_vector_dim,
         )
         model_fine.to(device)
 
@@ -204,6 +208,9 @@ def main():
     if "deformation_codes" in checkpoint and checkpoint["deformation_codes"] is not None:
         print("loading appearance codes from checkpoint")
         deformation_codes = torch.nn.Parameter(checkpoint['deformation_codes'].to(device))
+    if "refine_pose_params" in checkpoint and checkpoint["refine_pose_params"] is not None:
+        print("loading refine pose params from checkpoint")
+        refine_pose_params = torch.nn.Parameter(checkpoint['refine_pose_params'].to(device))
     else:
         deformation_codes = None
 
@@ -273,6 +280,10 @@ def main():
                 deformation_codes=deformation_codes[0].to(device) if cfg.dataset.use_deformation_code else None,
                 use_ldmks_dist=cfg.dataset.use_ldmks_dist,
                 cutoff_type=None if cfg.dataset.cutoff_type == "None" else cfg.dataset.cutoff_type,
+                embed_face_body=cfg.dataset.embed_face_body,
+                embed_face_body_separately=cfg.dataset.embed_face_body_separately,
+                refine_pose=1 if cfg.dataset.refine_pose else None,  # 2e5 following barf paper
+                
             )
             target_ray_values = img_target
         times_per_image.append(time.time() - start)
