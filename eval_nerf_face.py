@@ -208,11 +208,15 @@ def main():
     if "deformation_codes" in checkpoint and checkpoint["deformation_codes"] is not None:
         print("loading appearance codes from checkpoint")
         deformation_codes = torch.nn.Parameter(checkpoint['deformation_codes'].to(device))
+    else:
+        deformation_codes = None
+
     if "refine_pose_params" in checkpoint and checkpoint["refine_pose_params"] is not None:
         print("loading refine pose params from checkpoint")
         refine_pose_params = torch.nn.Parameter(checkpoint['refine_pose_params'].to(device))
     else:
-        deformation_codes = None
+        refine_pose_params: None
+    
 
     if "height" in checkpoint.keys():
         hwf[0] = checkpoint["height"]
