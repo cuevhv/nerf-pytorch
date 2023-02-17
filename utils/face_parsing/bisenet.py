@@ -1,3 +1,5 @@
+''' Taken from https://github.com/zllrunning/face-parsing.PyTorch
+'''
 from utils.face_parsing.model import BiSeNet as model
 
 import torch
