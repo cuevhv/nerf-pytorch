@@ -150,7 +150,7 @@ def main():
             include_input=cfg.models.coarse.include_input_dir,
             log_sampling=cfg.models.coarse.log_sampling_dir,
         )
-    
+
     encode_ldmks_fn = get_embedding_function(
         num_encoding_functions=cfg.models.coarse.num_encoding_fn_ldmks,
         include_input=cfg.models.coarse.include_input_ldmks,
@@ -215,20 +215,20 @@ def main():
         assert background_img.shape == images[i_train][0].shape
     else:
         background_img = None
-    
+
 
     # Initialize optimizer.
     trainable_parameters = list(model_coarse.parameters())
     if model_fine is not None:
         trainable_parameters += list(model_fine.parameters())
-    
+
     if cfg.dataset.use_appearance_code:
         # appearance_codes = torch.zeros(len(i_train), 32, device=device).requires_grad_()
         appearance_codes = (torch.randn(len(i_train), cfg.dataset.embedding_vector_dim, device=device)*0.1).requires_grad_()
         print("initialized latent codes with shape %d X %d" % (appearance_codes.shape[0], appearance_codes.shape[1]))
         # appearance_codes.requires_grad = True
         trainable_parameters.append(appearance_codes)
-    
+
     if cfg.dataset.use_deformation_code:
         deform_size = cfg.dataset.embedding_vector_dim
         deformation_codes = torch.zeros(len(i_train), deform_size, device=device).requires_grad_()
@@ -238,12 +238,12 @@ def main():
 
     if cfg.dataset.refine_pose:
         refine_pose_params = torch.zeros(len(i_train), 6, device=device).requires_grad_()
-        
+
         print("initialized refine pose params with shape %d X %d" % (refine_pose_params.shape[0], refine_pose_params.shape[1]))
         trainable_parameters.append(refine_pose_params)
-        
-        
-    
+
+
+
     optimizer = getattr(torch.optim, cfg.optimizer.type)(
         trainable_parameters, lr=cfg.optimizer.lr
     )
@@ -274,8 +274,8 @@ def main():
         if "refine_pose_params" in checkpoint and checkpoint["refine_pose_params"] is not None:
             print("loading refine pose params from checkpoint")
             refine_pose_params = torch.nn.Parameter(checkpoint['refine_pose_params'].to(device))
-        
-        
+
+
 
         optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
         start_iter = checkpoint["iter"]
@@ -288,12 +288,12 @@ def main():
     #     bbox = bboxs[i]
     #     probs = get_prob_map_bbox(bbox, H, W, p=0.9)
     #     ray_importance_sampling_maps.append(probs.reshape(-1))
-        
+
     for i in trange(0, cfg.experiment.train_iters):
         if i <= start_iter:
             # Trick to continue the random choice when loading the checkpoint
-            # TODO: change for randomstate 
-            img_idx = np.random.choice(i_train)  
+            # TODO: change for randomstate
+            img_idx = np.random.choice(i_train)
             continue
         model_coarse.train()
         if model_fine:
@@ -345,7 +345,7 @@ def main():
             if cfg.dataset.refine_pose:
                 pose_target = RefinePose()(refine_pose_params[img_idx], pose_target)
             # pose_target = compose_pair(pose_refine[img_idx], pose_target)
-            
+
             if expressions is not None:
                 expressions_target = expressions[img_idx].to(device)
             else:
@@ -373,13 +373,13 @@ def main():
                 probs = None
 
             select_inds = np.random.choice(
-                coords.shape[0], size=(cfg.nerf.train.num_random_rays), replace=False, 
+                coords.shape[0], size=(cfg.nerf.train.num_random_rays), replace=False,
                 p=probs, # Sample more inside the bbox
             )
             select_inds = coords[select_inds]
             ray_origins = ray_origins[select_inds[:, 0], select_inds[:, 1], :]
             ray_directions = ray_directions[select_inds[:, 0], select_inds[:, 1], :]
-            
+
             # batch_rays = torch.stack([ray_origins, ray_directions], dim=0)
             target_s = img_target[select_inds[:, 0], select_inds[:, 1], :]
             background_ray_values = background_img[select_inds[:, 0], select_inds[:, 1], :] if cfg.dataset.fix_background else None
@@ -432,7 +432,7 @@ def main():
         if cfg.optimizer.appearance_code and cfg.dataset.use_appearance_code:
             loss_appearance_codes = torch.linalg.norm(appearance_codes[img_idx])
             # loss = loss + 0.005*loss_appearance_codes
-        
+
         if cfg.optimizer.deformation_code and cfg.dataset.use_deformation_code:
             if cfg.dataset.embed_face_body:
                 loss_deformation_codes = torch.linalg.norm(deformation_codes[img_idx, :deform_size//2]) + \
@@ -440,7 +440,7 @@ def main():
             else:
                 loss_deformation_codes = torch.linalg.norm(deformation_codes[img_idx])
             # loss = loss + 0.005*loss_deformation_codes
-            
+
         loss = loss_nerf + 0.005*loss_appearance_codes + 0.005*loss_deformation_codes
 
         loss.backward()
@@ -510,13 +510,13 @@ def main():
                     )
                     target_ray_values = cache_dict["target"].to(device)
                 else:
-                    loss, total_coarse_loss, total_fine_loss = 0., 0., 0. 
+                    loss, total_coarse_loss, total_fine_loss = 0., 0., 0.
                     # img_idx = np.random.choice(i_val)
                     for img_idx in range(1): #i_val: Not worthy to test on all the 5 val images
                         img_idx = np.random.choice(i_val)
                         img_target = images[img_idx].to(device)
                         pose_target = poses[img_idx, :3, :4].to(device)
-                        
+
                         if expressions is not None:
                             expressions_target = expressions[img_idx].to(device)
                         else:
@@ -572,7 +572,7 @@ def main():
 
                 # not worthy testing on all the 5 val images, 1 is fine
                 # loss /= len(i_val)
-                # total_coarse_loss /= len(i_val) 
+                # total_coarse_loss /= len(i_val)
                 # total_fine_loss /= len(i_val)
 
                 psnr = mse2psnr(loss.item())
