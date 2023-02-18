@@ -1,13 +1,10 @@
-''' Taken from https://github.com/zllrunning/face-parsing.PyTorch
+''' Modified from https://github.com/zllrunning/face-parsing.PyTorch
 '''
 from utils.face_parsing.model import BiSeNet as model
 
 import torch
 
-import os
-import os.path as osp
 import numpy as np
-import time
 from PIL import Image
 import torchvision.transforms as transforms
 import cv2
