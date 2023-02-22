@@ -148,7 +148,7 @@ optimizer:
   # optimize apperance code
   appearance_code: False
   # optimize deformation
-  deformation_code: False
+  deformation_code: True
 
 # Learning rate schedule.
 scheduler:
