@@ -283,7 +283,7 @@ class FlexibleNeRFaceModel(torch.nn.Module):
         include_input_xyz = 3 if include_input_xyz else 0
         include_input_dir = 3 if include_input_dir else 0
         include_input_ldmks = 1 if include_input_ldmks else 0
-        
+
         # TODO: change expression and lanrmsrks3d value to depend on cfg
         include_expresion = 50 if use_expression else 0
         include_landmarks3d = 68 if use_landmarks3d else 0
@@ -294,7 +294,7 @@ class FlexibleNeRFaceModel(torch.nn.Module):
         self.use_appearance_code = use_appearance_code
         self.use_deformation_code = use_deformation_code
         # if use_appearance_code:
-            # self.appearance_codes = torch.nn.Embedding(num_embeddings=num_train_images, 
+            # self.appearance_codes = torch.nn.Embedding(num_embeddings=num_train_images,
             #                                            embedding_dim=embedding_vector_dim)
 
 
@@ -303,7 +303,7 @@ class FlexibleNeRFaceModel(torch.nn.Module):
         self.dim_expression = include_expresion
         self.dim_landmarks3d = include_input_ldmks*include_landmarks3d + 2 * include_landmarks3d * num_encoding_fn_ldmks + include_landmarks3d*3
         self.dim_appearance_codes = embedding_vector_dim if use_appearance_code else 0
-        self.dim_deformation_codes = embedding_vector_dim if use_deformation_code else 0 
+        self.dim_deformation_codes = embedding_vector_dim if use_deformation_code else 0
 
 
         self.skip_connect_every = skip_connect_every
@@ -357,7 +357,7 @@ class FlexibleNeRFaceModel(torch.nn.Module):
             xyz, dirs = x[..., : self.dim_xyz], x[..., self.dim_xyz :]
         else:
             xyz = x[..., : self.dim_xyz]
-        
+
         if self.dim_expression:
             # The face has the same expression in all the pixels of the image
             # NOTE: maybe input expression only on the pixels where the face is?
@@ -367,7 +367,7 @@ class FlexibleNeRFaceModel(torch.nn.Module):
         if self.use_deformation_code:
                 deformation_codes = deformation_codes.repeat(xyz.shape[0], 1)
                 xyz = torch.cat((xyz, deformation_codes), dim=1)
-        
+
         x = self.layer1(xyz)
         for i in range(len(self.layers_xyz)):
             if (
@@ -385,7 +385,7 @@ class FlexibleNeRFaceModel(torch.nn.Module):
             if self.use_appearance_code:
                 appearance_codes = appearance_codes.repeat(xyz.shape[0], 1)
                 x = torch.cat((x, appearance_codes), dim=1)
-                
+
             for l in self.layers_dir:
                 x = self.relu(l(x))
             rgb = self.fc_rgb(x)
@@ -500,7 +500,7 @@ class FaceNerfPaperNeRFModel(torch.nn.Module):
             xyz, dirs = x[..., : self.dim_xyz], x[..., self.dim_xyz :]
         else:
             xyz = x[..., : self.dim_xyz]
-        
+
         x = xyz#self.relu(self.layers_xyz[0](xyz))
         initial = xyz
 
@@ -513,7 +513,7 @@ class FaceNerfPaperNeRFModel(torch.nn.Module):
             deformation_codes = deformation_codes.repeat(xyz.shape[0], 1)
             initial = torch.cat((initial, deformation_codes), dim=1)
         x = initial
-                   
+
         for i in range(6):
             if i == 3:
                 x = self.layers_xyz[i](torch.cat((initial, x), -1))
@@ -544,7 +544,7 @@ class translation_field(torch.nn.Module):
         super(translation_field).__init__()
         self.skips = skips
         self.mlp_layers = torch.nn.ModuleList()
-        
+
         self.mlp_layers.append(torch.nn.Linear(mlp_dim, 256))
         for i in range(1, mlp_depth):
             if i in skips:
@@ -668,7 +668,7 @@ class FaceNerfPaperNeRFModelCond(torch.nn.Module):
             xyz, dirs = x[..., : self.dim_xyz], x[..., self.dim_xyz :]
         else:
             xyz = x[..., : self.dim_xyz]
-        
+
         x = xyz#self.relu(self.layers_xyz[0](xyz))
         initial = xyz
 
@@ -676,7 +676,7 @@ class FaceNerfPaperNeRFModelCond(torch.nn.Module):
         if self.use_deformation_code:
             initial = torch.cat((initial, deformation_codes), dim=1)
         x = initial
-                   
+
         for i in range(6):
             if i == 3:
                 x = self.layers_xyz[i](torch.cat((initial, x), -1))
@@ -818,17 +818,17 @@ class FaceNerfPaperNeRFModelDualCond(torch.nn.Module):
                 delta_background = self.delta_background(xyz_deform_background)
 
                 xyz = cutoff_ws[:, None]*(xyz_pts+delta_ldmks) + (1-cutoff_ws[:, None])*(xyz_pts+delta_background)
-                
+
                 xyz = pos_enc_func(xyz, None, None)
         else:
             raise NotImplementedError
-    
+
 
         initial = xyz
 
         # appearance_codes = appearance_codes.repeat(xyz.shape[0], 1)
         x = initial
-                   
+
         for i in range(6):
             if i == 3:
                 x = self.layers_xyz[i](torch.cat((initial, x), -1))
@@ -862,7 +862,7 @@ class FaceNerfPaperNeRFModelDualCond(torch.nn.Module):
                 if i < len(self.layers_ldmks3d_enc)-1:
                     xyz_ldmks = self.relu(xyz_ldmks)
         return xyz_ldmks
-    
+
     def delta_background(self, xyz_deform_background):
         start_xyz = xyz_deform_background
         for i in range(len(self.layers_background_enc)):
@@ -872,4 +872,223 @@ class FaceNerfPaperNeRFModelDualCond(torch.nn.Module):
             if i < len(self.layers_background_enc)-1:
                 xyz_deform_background = self.relu(xyz_deform_background)
         return xyz_deform_background
+
+
+
+
+import torch
+import tinycudann as tcnn
+from torch.autograd import Function
+from torch.cuda.amp import custom_bwd, custom_fwd
+
+class _TruncExp(Function):  # pylint: disable=abstract-method
+    # Implementation from torch-ngp:
+    # https://github.com/ashawkey/torch-ngp/blob/93b08a0d4ec1cc6e69d85df7f0acdfb99603b628/activation.py
+    @staticmethod
+    @custom_fwd(cast_inputs=torch.float32)
+    def forward(ctx, x):  # pylint: disable=arguments-differ
+        ctx.save_for_backward(x)
+        return torch.exp(x)
+
+    @staticmethod
+    @custom_bwd
+    def backward(ctx, g):  # pylint: disable=arguments-differ
+        x = ctx.saved_tensors[0]
+        return g * torch.exp(torch.clamp(x, max=15))
+
+
+trunc_exp = _TruncExp.apply
+
+
+class FaceNerfPaperNeRFModelTinyCuda(torch.nn.Module):
+    r"""Implements the NeRF model as described in Fig. 7 (appendix) of the
+    arXiv submission (v0). """
+
+    def __init__(
+        self,
+        num_layers=8,
+        hidden_size=256,
+        skip_connect_every=4,
+        num_encoding_fn_xyz=6,
+        num_encoding_fn_dir=4,
+        num_encoding_fn_ldmks=4,
+        include_input_xyz=True,
+        include_input_dir=True,
+        include_input_ldmks=True,
+        use_viewdirs=True,
+        use_expression=True,
+        use_landmarks3d: bool = True,
+        use_appearance_code: bool =True,
+        use_deformation_code: bool = True,
+        num_train_images: int = 0,
+        embedding_vector_dim=32,
+        landmarks3d_last=False,
+        encode_ldmks3d=False,
+
+    ):
+        super(FaceNerfPaperNeRFModelTinyCuda, self).__init__()
+
+        include_input_xyz = 3 if include_input_xyz else 0
+        include_input_dir = 3 if include_input_dir else 0
+        include_input_ldmks = 1 if include_input_ldmks else 0
+
+        include_expression = 50 if use_expression else 0
+        include_landmarks3d = 68 if use_landmarks3d else 0
+
+        self.landmarks3d_last = landmarks3d_last
+
+        self.dim_xyz = include_input_xyz + 2 * 3 * num_encoding_fn_xyz
+        self.dim_dir = include_input_dir + 2 * 3 * num_encoding_fn_dir
+        self.dim_expression = include_expression# + 2 * 3 * num_encoding_fn_expr
+        self.dim_landmarks3d = include_input_ldmks*include_landmarks3d + 2 * include_landmarks3d * num_encoding_fn_ldmks + include_landmarks3d*3
+        self.dim_full_landmarks3d = self.dim_landmarks3d
+
+        self.encode_ldmks3d = encode_ldmks3d
+        if self.encode_ldmks3d:
+            self.layers_ldmks3d_enc = torch.nn.ModuleList()
+            self.layers_ldmks3d_enc.append(torch.nn.Linear(self.dim_landmarks3d+self.dim_xyz, 128))
+            self.layers_ldmks3d_enc.append(torch.nn.Linear(128, 128))
+            self.layers_ldmks3d_enc.append(torch.nn.Linear(128, self.dim_xyz))
+            torch.nn.init.uniform_(self.layers_ldmks3d_enc[-1].weight, a=-1e-4, b=1e-4)
+            self.dim_landmarks3d = 0
+
+        # add appearance code
+        self.use_appearance_code = use_appearance_code
+        self.use_deformation_code = use_deformation_code
+        self.dim_appearance_codes = embedding_vector_dim if use_appearance_code else 0
+        self.dim_deformation_codes = embedding_vector_dim if use_deformation_code else 0
+        # self.dim_latent_code = embedding_vector_dim
+
+        self.layers_xyz = torch.nn.ModuleList()
+        self.use_viewdirs = use_viewdirs
+        self.use_landmarks3d = use_landmarks3d
+
+        # dim of the first input group to predict the density
+        input_density_dim = self.dim_xyz + self.dim_expression + self.dim_deformation_codes
+        if not landmarks3d_last:
+            input_density_dim += self.dim_landmarks3d
+
+        num_levels = 16
+        log2_hashmap_size = 19
+        per_level_scale = 1.4472692012786865
+        hidden_dim = 64
+        num_layers = 2
+        geo_feat_dim = 15
+
+        self.geo_feat_dim = geo_feat_dim
+
+        self.mlp_base = tcnn.NetworkWithInputEncoding(
+            n_input_dims=self.dim_xyz,
+            n_output_dims=1 + self.geo_feat_dim,
+            encoding_config={
+                "otype": "HashGrid",
+                "n_levels": num_levels,
+                "n_features_per_level": 2,
+                "log2_hashmap_size": log2_hashmap_size,
+                "base_resolution": 16,
+                "per_level_scale": per_level_scale,
+            },
+            network_config={
+                "otype": "FullyFusedMLP",
+                "activation": "ReLU",
+                "output_activation": "None",
+                "n_neurons": hidden_dim,
+                "n_hidden_layers": num_layers - 1,
+            },
+        )
+
+        self.encoding = tcnn.Encoding(n_input_dims=self.dim_xyz,
+                                        encoding_config={
+                                        "otype": "HashGrid",
+                                        "n_levels": num_levels,
+                                        "n_features_per_level": 2,
+                                        "log2_hashmap_size": log2_hashmap_size,
+                                        "base_resolution": 16,
+                                        "per_level_scale": per_level_scale,
+                                        })
+
+        input_density_dim = self.encoding.n_output_dims + self.dim_deformation_codes + self.dim_expression
+        self.mlp_base = tcnn.Network(input_density_dim,
+                                     n_output_dims=1 + self.geo_feat_dim, network_config={
+                                        "otype": "FullyFusedMLP",
+                                        "activation": "ReLU",
+                                        "output_activation": "None",
+                                        "n_neurons": hidden_dim,
+                                        "n_hidden_layers": num_layers - 1,
+                                    },)
+
+        self.direction_encoding = tcnn.Encoding(
+            n_input_dims=3,
+            encoding_config={
+                "otype": "SphericalHarmonics",
+                "degree": 4,
+            },
+        )
+
+        in_dim = self.direction_encoding.n_output_dims + self.geo_feat_dim
+        hidden_dim_color = 64
+        num_layers_color = 3
+
+        self.mlp_head = tcnn.Network(
+            n_input_dims=in_dim,
+            n_output_dims=3,
+            network_config={
+                "otype": "FullyFusedMLP",
+                "activation": "ReLU",
+                "output_activation": "Sigmoid",
+                "n_neurons": hidden_dim_color,
+                "n_hidden_layers": num_layers_color - 1,
+            },
+        )
+
+        self.layers_xyz.append(torch.nn.Linear(input_density_dim, 256))
+        for i in range(1, 6):
+            if i == 3:
+                self.layers_xyz.append(torch.nn.Linear(input_density_dim + 256, 256))
+            else:
+                self.layers_xyz.append(torch.nn.Linear(256, 256))
+        self.fc_feat = torch.nn.Linear(256, 256)
+        self.fc_alpha = torch.nn.Linear(256, 1)
+
+        self.layers_dir = torch.nn.ModuleList()
+
+        # dim of the second input group to predict the color
+        input_color_dim = self.dim_dir + self.dim_appearance_codes
+        if landmarks3d_last:
+            input_color_dim += self.dim_landmarks3d
+
+        self.layers_dir.append(torch.nn.Linear(256 + input_color_dim, 128))
+        for i in range(3):
+            self.layers_dir.append(torch.nn.Linear(128, 128))
+        self.fc_rgb = torch.nn.Linear(128, 3)
+        self.relu = torch.nn.functional.relu
+
+    def forward(self, x,  expression=None, appearance_codes=None, deformation_codes=None, **kwargs):
+        if self.use_landmarks3d:
+            raise NotImplementedError
+        elif self.use_viewdirs:
+            xyz, dirs = x[..., : self.dim_xyz], x[..., self.dim_xyz :]
+        else:
+            xyz = x[..., : self.dim_xyz]
+
+
+        xyz = self.encoding(xyz)
+        if self.dim_expression > 0:
+            expr_encoding = (expression * 1 / 3).repeat(xyz.shape[0], 1)
+            xyz = torch.cat((xyz, expr_encoding), dim=1)
+        if self.use_deformation_code:
+            deformation_codes = deformation_codes.repeat(xyz.shape[0], 1)
+            xyz = torch.cat((xyz, deformation_codes), dim=1)
+
+        h = self.mlp_base(xyz)
+        density_before_activation, base_mlp_out = torch.split(h, [1, self.geo_feat_dim], dim=-1)
+        alpha = trunc_exp(density_before_activation.to(xyz.device))
+
+        dirs = (dirs + 1.0) / 2.0
+        d = self.direction_encoding(dirs.view(-1, dirs.shape[-1]))
+        h = torch.cat([d, base_mlp_out.view(-1, self.geo_feat_dim)], dim=-1)
+
+        rgb = (self.mlp_head(h).view(list(base_mlp_out.shape[:-1]) + [3]).to(base_mlp_out))
+
+        return torch.cat((rgb, alpha), dim=-1)
 
