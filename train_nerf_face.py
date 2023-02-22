@@ -137,6 +137,10 @@ def main():
     else:
         device = "cpu"
 
+    # if cfg.dataset.mask_face:
+    # from utils.face_parsing.bisenet import BiseNet
+    # face_seg_net = BiseNet(False, '/home/hanz/Documents/projects/face_animation/face-parsing.PyTorch/res/cp/79999_iter.pth')
+
     encode_position_fn = get_embedding_function(
         num_encoding_functions=cfg.models.coarse.num_encoding_fn_xyz,
         include_input=cfg.models.coarse.include_input_xyz,
@@ -339,6 +343,9 @@ def main():
             )
         else:
             img_idx = np.random.choice(i_train)
+            # print(img_idx)
+            # out = face_seg_net.infer(images[img_idx])
+
             img_target = images[img_idx].to(device)
             pose_target = poses[img_idx, :3, :4].to(device)
 
