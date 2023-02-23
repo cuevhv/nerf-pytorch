@@ -977,25 +977,25 @@ class FaceNerfPaperNeRFModelTinyCuda(torch.nn.Module):
 
         self.geo_feat_dim = geo_feat_dim
 
-        self.mlp_base = tcnn.NetworkWithInputEncoding(
-            n_input_dims=self.dim_xyz,
-            n_output_dims=1 + self.geo_feat_dim,
-            encoding_config={
-                "otype": "HashGrid",
-                "n_levels": num_levels,
-                "n_features_per_level": 2,
-                "log2_hashmap_size": log2_hashmap_size,
-                "base_resolution": 16,
-                "per_level_scale": per_level_scale,
-            },
-            network_config={
-                "otype": "FullyFusedMLP",
-                "activation": "ReLU",
-                "output_activation": "None",
-                "n_neurons": hidden_dim,
-                "n_hidden_layers": num_layers - 1,
-            },
-        )
+        # self.mlp_base = tcnn.NetworkWithInputEncoding(
+        #     n_input_dims=self.dim_xyz,
+        #     n_output_dims=1 + self.geo_feat_dim,
+        #     encoding_config={
+        #         "otype": "HashGrid",
+        #         "n_levels": num_levels,
+        #         "n_features_per_level": 2,
+        #         "log2_hashmap_size": log2_hashmap_size,
+        #         "base_resolution": 16,
+        #         "per_level_scale": per_level_scale,
+        #     },
+        #     network_config={
+        #         "otype": "FullyFusedMLP",
+        #         "activation": "ReLU",
+        #         "output_activation": "None",
+        #         "n_neurons": hidden_dim,
+        #         "n_hidden_layers": num_layers - 1,
+        #     },
+        # )
 
         self.encoding = tcnn.Encoding(n_input_dims=self.dim_xyz,
                                         encoding_config={
