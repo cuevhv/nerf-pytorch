@@ -1041,27 +1041,6 @@ class FaceNerfPaperNeRFModelTinyCuda(torch.nn.Module):
             },
         )
 
-        self.layers_xyz.append(torch.nn.Linear(input_density_dim, 256))
-        for i in range(1, 6):
-            if i == 3:
-                self.layers_xyz.append(torch.nn.Linear(input_density_dim + 256, 256))
-            else:
-                self.layers_xyz.append(torch.nn.Linear(256, 256))
-        self.fc_feat = torch.nn.Linear(256, 256)
-        self.fc_alpha = torch.nn.Linear(256, 1)
-
-        self.layers_dir = torch.nn.ModuleList()
-
-        # dim of the second input group to predict the color
-        input_color_dim = self.dim_dir + self.dim_appearance_codes
-        if landmarks3d_last:
-            input_color_dim += self.dim_landmarks3d
-
-        self.layers_dir.append(torch.nn.Linear(256 + input_color_dim, 128))
-        for i in range(3):
-            self.layers_dir.append(torch.nn.Linear(128, 128))
-        self.fc_rgb = torch.nn.Linear(128, 3)
-        self.relu = torch.nn.functional.relu
 
     def forward(self, x,  expression=None, appearance_codes=None, deformation_codes=None, **kwargs):
         if self.use_landmarks3d:
