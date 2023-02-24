@@ -959,7 +959,6 @@ class FaceNerfPaperNeRFModelTinyCuda(torch.nn.Module):
         self.dim_deformation_codes = embedding_vector_dim if use_deformation_code else 0
         # self.dim_latent_code = embedding_vector_dim
 
-        self.layers_xyz = torch.nn.ModuleList()
         self.use_viewdirs = use_viewdirs
         self.use_landmarks3d = use_landmarks3d
 
@@ -1035,7 +1034,7 @@ class FaceNerfPaperNeRFModelTinyCuda(torch.nn.Module):
             network_config={
                 "otype": "FullyFusedMLP",
                 "activation": "ReLU",
-                "output_activation": "Sigmoid",
+                "output_activation": "None",
                 "n_neurons": hidden_dim_color,
                 "n_hidden_layers": num_layers_color - 1,
             },
