@@ -227,8 +227,8 @@ def main():
         trainable_parameters += list(model_fine.parameters())
 
     if cfg.dataset.use_appearance_code:
-        # appearance_codes = torch.zeros(len(i_train), 32, device=device).requires_grad_()
-        appearance_codes = (torch.randn(len(i_train), cfg.dataset.embedding_vector_dim, device=device)*0.1).requires_grad_()
+        appearance_codes = torch.zeros(len(i_train), 32, device=device).requires_grad_()
+        # appearance_codes = (torch.randn(len(i_train), cfg.dataset.embedding_vector_dim, device=device)*0.1).requires_grad_()
         print("initialized latent codes with shape %d X %d" % (appearance_codes.shape[0], appearance_codes.shape[1]))
         # appearance_codes.requires_grad = True
         trainable_parameters.append(appearance_codes)
@@ -583,12 +583,14 @@ def main():
                 # total_fine_loss /= len(i_val)
 
                 psnr = mse2psnr(loss.item())
-                psnr_fine = mse2psnr(total_fine_loss.item())
                 writer.add_scalar("validation/loss", loss.item(), i)
                 writer.add_scalar("validation/coarse_loss", total_coarse_loss.item(), i)
-                writer.add_scalar("validation/fine_loss", total_fine_loss.item(), i)
+                if model_fine:
+                    psnr_fine = mse2psnr(total_fine_loss.item())
+                    writer.add_scalar("validation/fine_loss", total_fine_loss.item(), i)
+                    writer.add_scalar("validataion/psnr_fine", psnr_fine, i)
                 writer.add_scalar("validataion/psnr", psnr, i)
-                writer.add_scalar("validataion/psnr_fine", psnr_fine, i)
+
                 writer.add_image(
                     "validation/rgb_coarse", cast_to_image(rgb_coarse[..., :3]), i
                 )
