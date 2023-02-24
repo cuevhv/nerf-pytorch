@@ -33,7 +33,7 @@ def run_network(network_fn, pts, ray_batch, chunksize, embed_fn, embeddirs_fn, e
         input_dirs_flat = input_dirs.reshape((-1, input_dirs.shape[-1]))
         embedded_dirs = embeddirs_fn(input_dirs_flat, None, None, refine_pose)
         embedded = torch.cat((embedded, embedded_dirs), dim=-1)
-    
+
     if landmarks3d is not None:
         # Get how for a sample point is from the K landmarks
         dist_pts_lndmks3d, dir_pts_ldmks3d = get_pts_landmarks3d_dist(pts_flat, landmarks3d)
@@ -43,7 +43,7 @@ def run_network(network_fn, pts, ray_batch, chunksize, embed_fn, embeddirs_fn, e
             threshold_dist = 0.09  # threshold distance
             cutoff_w = 1-torch.sigmoid(tau*(dist_pts_lndmks3d-threshold_dist))
             # dir_pts_ldmks3d = dir_pts_ldmks3d*cutoff_w[:,:,None]
-            # p_np = cutoff_w.min(axis=-1)[0].detach().cpu().numpy()            
+            # p_np = cutoff_w.min(axis=-1)[0].detach().cpu().numpy()
             if embed_face_body:
                 highest_cutoff_w = cutoff_w.max(axis=-1)[0]
                 if not embed_face_body_separately:
@@ -77,7 +77,7 @@ def run_network(network_fn, pts, ray_batch, chunksize, embed_fn, embeddirs_fn, e
             preds = [network_fn(batch, appearance_codes=appearance_codes, deformation_codes=deformation_codes) for batch in batches]
         else:
             preds = [network_fn(batch, expressions, appearance_codes=appearance_codes, deformation_codes=deformation_codes) for batch in batches]
-    
+
     radiance_field = torch.cat(preds, dim=0)
     radiance_field = radiance_field.reshape(
         list(pts.shape[:-1]) + [radiance_field.shape[-1]]
@@ -194,14 +194,14 @@ def predict_and_render_radiance(
         z_samples = z_samples.detach()
 
         ablation_plot_points = False
-        if ablation_plot_points:                    
+        if ablation_plot_points:
             plots = show_samples(5)
             pts_old = ro[..., None, :] + rd[..., None, :] * z_vals[..., :, None]
             pts_new = ro[..., None, :] + rd[..., None, :] * z_samples[..., :, None]
             plots.add_sample_weights(pts_old, weights)
-            plots.add_sample_weights(pts_old, 
+            plots.add_sample_weights(pts_old,
                                 dist_pts2ldmks3d if use_ldmks_dist else weights)
-            plots.add_sample_weights(pts_old, 
+            plots.add_sample_weights(pts_old,
                             dist_pts2ldmks3d/dist_pts2ldmks3d.sum(axis=1, keepdims=True) + \
                                 weights/weights.sum(axis=1, keepdims=True))
             plots.add_samples(pts_old, landmarks3d)
@@ -264,7 +264,7 @@ class show_samples:
         ax = self.add_subplot()
         ldmks3d_np = landmarks3d.detach().cpu().numpy()
         pts_np = pts.detach().cpu().reshape([-1, 3]).numpy()
-        x, y, z = pts_np[:, 0], pts_np[:, 1], pts_np[:, 2] 
+        x, y, z = pts_np[:, 0], pts_np[:, 1], pts_np[:, 2]
 
         ax.plot(x,y,z, '.r')#, vmin=0, vmax=1)
         ax.plot(ldmks3d_np[:, 0], ldmks3d_np[:, 1], ldmks3d_np[:, 2], '.b')
@@ -286,7 +286,7 @@ class show_samples:
         x, y, z = pts_np[:, 0], pts_np[:, 1], pts_np[:, 2]
 
 
-        scatter = ax.scatter(x,y,z, c=p_np, alpha=p_np, cmap=plt.cm.magma, vmin=0, vmax=0.5)#, vmin=0, vmax=1)        
+        scatter = ax.scatter(x,y,z, c=p_np, alpha=p_np, cmap=plt.cm.magma, vmin=0, vmax=0.5)#, vmin=0, vmax=1)
         self.ax_properties(ax)
         plt.colorbar(scatter)
 
@@ -337,7 +337,9 @@ def run_one_iter_of_nerf(
     ]
     if model_fine:
         restore_shapes += restore_shapes
-        restore_shapes += [ray_directions.shape[:-1]] # to return last weight value (background)
+    else:
+        restore_shapes += [None, None, None]
+    restore_shapes += [ray_directions.shape[:-1]] # to return last weight value (background)
     if options.dataset.no_ndc is False:
         ro, rd = ndc_rays(height, width, focal_length, 1.0, ray_origins, ray_directions)
         ro = ro.view((-1, 3))
@@ -396,5 +398,5 @@ def run_one_iter_of_nerf(
         else:
             # If the fine network is not used, rgb_fine, disp_fine, acc_fine are
             # set to None.
-            return tuple(synthesized_images + [None, None, None])
+            return tuple(synthesized_images)
     return tuple(synthesized_images)
