@@ -247,10 +247,18 @@ def main():
         trainable_parameters.append(refine_pose_params)
 
 
+    use_amp = hasattr(cfg.optimizer, "use_amp") and cfg.optimizer.use_amp
+    if use_amp:
+        grad_scaler = torch.cuda.amp.GradScaler(enabled=use_amp)
+        optimizer = getattr(torch.optim, cfg.optimizer.type)(
+            trainable_parameters, lr=cfg.optimizer.lr, eps=1e-15,
+        )
 
-    optimizer = getattr(torch.optim, cfg.optimizer.type)(
-        trainable_parameters, lr=cfg.optimizer.lr
-    )
+    else:
+
+        optimizer = getattr(torch.optim, cfg.optimizer.type)(
+            trainable_parameters, lr=cfg.optimizer.lr
+        )
 
     # Setup logging.
     logdir = os.path.join(cfg.experiment.logdir, cfg.experiment.id)
@@ -392,50 +400,52 @@ def main():
             background_ray_values = background_img[select_inds[:, 0], select_inds[:, 1], :] if cfg.dataset.fix_background else None
 
             then = time.time()
-            rgb_coarse, _, _, rgb_fine, _, _, weights_background_sample = run_one_iter_of_nerf(
-                H,
-                W,
-                focal,
-                model_coarse,
-                model_fine,
-                ray_origins,
-                ray_directions,
-                cfg,
-                mode="train",
-                encode_position_fn=encode_position_fn,
-                encode_direction_fn=encode_direction_fn,
-                encode_ldmks_fn=encode_ldmks_fn,
-                expressions=expressions_target,
-                background_prior=background_ray_values,
-                landmarks3d=landmarks3d_target,
-                appearance_codes=appearance_codes[img_idx].to(device) if cfg.dataset.use_appearance_code else None,
-                deformation_codes=deformation_codes[img_idx].to(device) if cfg.dataset.use_deformation_code else None,
-                use_ldmks_dist=cfg.dataset.use_ldmks_dist,
-                cutoff_type=None if cfg.dataset.cutoff_type == "None" else cfg.dataset.cutoff_type,
-                embed_face_body=cfg.dataset.embed_face_body,
-                embed_face_body_separately=cfg.dataset.embed_face_body_separately,
-                refine_pose=i/2e5 if cfg.dataset.refine_pose else None,  # 2e5 following barf paper
-            )
-            target_ray_values = target_s
+            with torch.autocast(device_type='cuda', dtype=torch.float16, enabled=use_amp):
+                rgb_coarse, _, _, rgb_fine, _, _, weights_background_sample = run_one_iter_of_nerf(
+                    H,
+                    W,
+                    focal,
+                    model_coarse,
+                    model_fine,
+                    ray_origins,
+                    ray_directions,
+                    cfg,
+                    mode="train",
+                    encode_position_fn=encode_position_fn,
+                    encode_direction_fn=encode_direction_fn,
+                    encode_ldmks_fn=encode_ldmks_fn,
+                    expressions=expressions_target,
+                    background_prior=background_ray_values,
+                    landmarks3d=landmarks3d_target,
+                    appearance_codes=appearance_codes[img_idx].to(device) if cfg.dataset.use_appearance_code else None,
+                    deformation_codes=deformation_codes[img_idx].to(device) if cfg.dataset.use_deformation_code else None,
+                    use_ldmks_dist=cfg.dataset.use_ldmks_dist,
+                    cutoff_type=None if cfg.dataset.cutoff_type == "None" else cfg.dataset.cutoff_type,
+                    embed_face_body=cfg.dataset.embed_face_body,
+                    embed_face_body_separately=cfg.dataset.embed_face_body_separately,
+                    refine_pose=i/2e5 if cfg.dataset.refine_pose else None,  # 2e5 following barf paper
+                )
+                target_ray_values = target_s
 
-        coarse_loss = torch.nn.functional.mse_loss(
-            rgb_coarse[..., :3], target_ray_values[..., :3]
-        )
-        fine_loss = None
-        if rgb_fine is not None:
-            fine_loss = torch.nn.functional.mse_loss(
-                rgb_fine[..., :3], target_ray_values[..., :3]
+            coarse_loss = torch.nn.functional.mse_loss(
+                rgb_coarse[..., :3], target_ray_values[..., :3]
             )
-        # loss = torch.nn.functional.mse_loss(rgb_pred[..., :3], target_s[..., :3])
-        loss = 0.0
-        loss_nerf, loss_appearance_codes, loss_deformation_codes = 0.0, 0.0, 0.0
-        # if fine_loss is not None:
-        #     loss = fine_loss
-        # else:
-        #     loss = coarse_loss
-        loss_nerf = coarse_loss + (fine_loss if fine_loss is not None else 0.0)
-        # loss = loss_nerf
+            fine_loss = None
+            if rgb_fine is not None:
+                fine_loss = torch.nn.functional.mse_loss(
+                    rgb_fine[..., :3], target_ray_values[..., :3]
+                )
+            # loss = torch.nn.functional.mse_loss(rgb_pred[..., :3], target_s[..., :3])
+            loss = 0.0
+            loss_nerf, loss_appearance_codes, loss_deformation_codes = 0.0, 0.0, 0.0
+            # if fine_loss is not None:
+            #     loss = fine_loss
+            # else:
+            #     loss = coarse_loss
+            loss_nerf = coarse_loss + (fine_loss if fine_loss is not None else 0.0)
+            # loss = loss_nerf
 
+        # TODO: indent this part
         if cfg.optimizer.appearance_code and cfg.dataset.use_appearance_code:
             loss_appearance_codes = torch.linalg.norm(appearance_codes[img_idx])
             # loss = loss + 0.005*loss_appearance_codes
@@ -450,10 +460,15 @@ def main():
 
         loss = loss_nerf + 0.005*loss_appearance_codes + 0.005*loss_deformation_codes
 
-        loss.backward()
+        if use_amp:
+            grad_scaler.scale(loss).backward()
+            grad_scaler.step(optimizer)
+            grad_scaler.update()
+        else:
+            loss.backward()
+            optimizer.step()
+            optimizer.zero_grad()
         psnr = mse2psnr(loss_nerf.item())
-        optimizer.step()
-        optimizer.zero_grad()
 
         # Learning rate updates
         num_decay_steps = cfg.scheduler.lr_decay * 1000
