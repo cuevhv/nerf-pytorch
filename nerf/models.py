@@ -1049,6 +1049,13 @@ class FaceNerfPaperNeRFModelTinyCuda(torch.nn.Module):
         else:
             xyz = x[..., : self.dim_xyz]
 
+        # dist = dist_max - dist_min = [0.0600, 0.0676, 0.0474]
+        # dist_max + dist = [0.0898, 0.0885, 0.0794]
+        # dist_min - dist = [-0.0901, -0.1142, -0.0629]
+        # aabb_min = torch.tensor([-0.0901, -0.1142, -0.0629])[None, :].to(xyz.device)
+        # aabb_max = torch.tensor([0.0898, 0.0885, 0.0794])[None, :].to(xyz.device)
+        # xyz = (xyz - aabb_min) / (aabb_max - aabb_min)
+        # selector = ((xyz > 0.0) & (xyz < 1.0)).all(dim=-1)
 
         xyz = self.encoding(xyz)
         if self.dim_expression > 0:
@@ -1060,7 +1067,7 @@ class FaceNerfPaperNeRFModelTinyCuda(torch.nn.Module):
 
         h = self.mlp_base(xyz)
         density_before_activation, base_mlp_out = torch.split(h, [1, self.geo_feat_dim], dim=-1)
-        alpha = trunc_exp(density_before_activation.to(xyz.device))
+        alpha = trunc_exp(density_before_activation.to(xyz.device)) #* selector[..., None]
 
         dirs = (dirs + 1.0) / 2.0
         d = self.direction_encoding(dirs.view(-1, dirs.shape[-1]))
