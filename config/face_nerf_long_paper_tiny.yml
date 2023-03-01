@@ -149,6 +149,8 @@ optimizer:
   appearance_code: False
   # optimize deformation
   deformation_code: True
+  # use amp
+  use_amp: True
 
 # Learning rate schedule.
 scheduler:

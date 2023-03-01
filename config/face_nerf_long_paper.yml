@@ -63,7 +63,7 @@ dataset:
   # encode(landmarks3d-dist, PE(xyz)) and add to the PE(xyz) input
   encode_ldmks3d: False
   # refine pose
-  refine_pose: True
+  refine_pose: False
 
 # Model parameters.
 models:
@@ -106,7 +106,7 @@ models:
     # Whether or not to perform log sampling in the positional encoding
     # of the direction.
     log_sampling_ldmks: True
-    
+
   # Fine model.
   fine:
     # Name of the torch.nn.Module class that implements the model.
@@ -149,7 +149,9 @@ optimizer:
   appearance_code: False
   # optimize deformation
   deformation_code: False
- 
+  # use amp
+  # use_amp: True
+
 # Learning rate schedule.
 scheduler:
   # Exponentially decay learning rate (in 1000 steps)
