@@ -64,6 +64,8 @@ dataset:
   encode_ldmks3d: False
   # refine pose
   refine_pose: False
+  # mask only face
+  mask_face: True
 
 # Model parameters.
 models:
@@ -144,7 +146,7 @@ optimizer:
   # Name of the torch.optim class used for optimization.
   type: Adam
   # Learning rate.
-  lr: 5.0E-4
+  lr: 1.0E-2 #5.0E-4
   # optimize apperance code
   appearance_code: False
   # optimize deformation
