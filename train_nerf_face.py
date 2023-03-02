@@ -137,9 +137,16 @@ def main():
     else:
         device = "cpu"
 
-    # if cfg.dataset.mask_face:
-    # from utils.face_parsing.bisenet import BiseNet
-    # face_seg_net = BiseNet(False, '/home/hanz/Documents/projects/face_animation/face-parsing.PyTorch/res/cp/79999_iter.pth')
+    if hasattr(cfg.dataset, "mask_face") and cfg.dataset.mask_face:
+        from utils.face_parsing.bisenet import BiseNet
+        import requests
+        weight_path = "utils/face_parcing/79999_iter.pth"
+        if not os.path.exists(weight_path):
+            print("downloading weights for face parcing")
+            url = "https://drive.google.com/uc?id=154JgKpzCPW82qINcVieuPH3fZ2e0P812&export=download"
+            response = requests.get(url)
+            open(weight_path, "wb").write(response.content)
+        face_seg_net = BiseNet(False, weight_path)
 
     encode_position_fn = get_embedding_function(
         num_encoding_functions=cfg.models.coarse.num_encoding_fn_xyz,
@@ -216,6 +223,9 @@ def main():
         background_img = background_img/255
         print("bg shape", background_img.shape)
         print("should be ", images[i_train][0].shape)
+        assert background_img.shape == images[i_train][0].shape
+    elif hasattr(cfg.dataset, "mask_face") and cfg.dataset.mask_face:
+        background_img = torch.ones((H,W,3)).float().to(device)
         assert background_img.shape == images[i_train][0].shape
     else:
         background_img = None
@@ -351,10 +361,15 @@ def main():
             )
         else:
             img_idx = np.random.choice(i_train)
-            # print(img_idx)
-            # out = face_seg_net.infer(images[img_idx])
+            img_target = images[img_idx] #.to(device)
 
-            img_target = images[img_idx].to(device)
+            if hasattr(cfg.dataset, "mask_face") and cfg.dataset.mask_face:
+                out = face_seg_net.infer(images[img_idx]).astype(np.float32)
+                # Mask out image and make background white
+                img_target = img_target*out[:,:,None]+(1-out[:,:, None])
+
+            img_target = img_target.to(device)
+
             pose_target = poses[img_idx, :3, :4].to(device)
 
             if cfg.dataset.refine_pose:
