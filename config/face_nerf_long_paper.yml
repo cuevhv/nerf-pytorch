@@ -64,6 +64,9 @@ dataset:
   encode_ldmks3d: False
   # refine pose
   refine_pose: False
+  # mask only face
+  mask_face: True
+
 
 # Model parameters.
 models:
