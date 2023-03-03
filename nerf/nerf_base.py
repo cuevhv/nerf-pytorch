@@ -1,0 +1,87 @@
+import numpy as np
+import torch
+import os
+from typing import Tuple
+
+
+class nerf_base(object):
+    def __init__(self, train_size, device) -> None:
+        self.train_size = train_size  # len(i_train)
+        self.model_coarse = None
+        self.model_fine = None
+        self.deformation_codes = None
+        self.appearance_codes = None
+        self.refine_pose_params = None
+        self.optimizer = None
+        self.device = device
+
+
+    def create_nerf_network(self, cfg, models):
+        self.model_coarse = getattr(models, cfg.models.coarse.type)(
+        num_encoding_fn_xyz=cfg.models.coarse.num_encoding_fn_xyz,
+        num_encoding_fn_dir=cfg.models.coarse.num_encoding_fn_dir,
+        num_encoding_fn_ldmks=cfg.models.coarse.num_encoding_fn_ldmks,
+        include_input_xyz=cfg.models.coarse.include_input_xyz,
+        include_input_dir=cfg.models.coarse.include_input_dir,
+        include_input_ldmks=cfg.models.coarse.include_input_ldmks,
+        use_viewdirs=cfg.models.coarse.use_viewdirs,
+        num_layers=cfg.models.coarse.num_layers,
+        hidden_size=cfg.models.coarse.hidden_size,
+        use_expression=cfg.dataset.use_expression,
+        use_landmarks3d=cfg.dataset.use_landmarks3d,
+        use_appearance_code=cfg.dataset.use_appearance_code,
+        use_deformation_code=cfg.dataset.use_deformation_code,
+        num_train_images=self.train_size,
+        landmarks3d_last=cfg.dataset.landmarks3d_last,
+        encode_ldmks3d=cfg.dataset.encode_ldmks3d,
+        embedding_vector_dim=cfg.dataset.embedding_vector_dim,
+        )
+        self.model_coarse.to(self.device)
+
+        # If a fine-resolution model is specified, initialize it.
+        if hasattr(cfg.models, "fine"):
+            self.model_fine = getattr(models, cfg.models.fine.type)(
+            num_encoding_fn_xyz=cfg.models.fine.num_encoding_fn_xyz,
+            num_encoding_fn_dir=cfg.models.fine.num_encoding_fn_dir,
+            num_encoding_fn_ldmks=cfg.models.coarse.num_encoding_fn_ldmks,
+            include_input_xyz=cfg.models.fine.include_input_xyz,
+            include_input_dir=cfg.models.fine.include_input_dir,
+            include_input_ldmks=cfg.models.coarse.include_input_ldmks,
+            use_viewdirs=cfg.models.fine.use_viewdirs,
+            num_layers=cfg.models.coarse.num_layers,
+            hidden_size=cfg.models.coarse.hidden_size,
+            use_expression=cfg.dataset.use_expression,
+            use_landmarks3d=cfg.dataset.use_landmarks3d,
+            use_appearance_code=cfg.dataset.use_appearance_code,
+            use_deformation_code=cfg.dataset.use_deformation_code,
+            num_train_images=self.train_size,
+            landmarks3d_last=cfg.dataset.landmarks3d_last,
+            encode_ldmks3d=cfg.dataset.encode_ldmks3d,
+            embedding_vector_dim=cfg.dataset.embedding_vector_dim,
+            )
+
+            self.model_fine.to(self.device)
+
+
+    def init_network(self, cfg, networks):
+        self.create_nerf_network(cfg, networks)
+        trainable_parameters = list(self.model_coarse.parameters())
+        if self.model_fine is not None:
+            trainable_parameters += list(self.model_fine.parameters())
+
+        # Adding learnable codes
+        if cfg.dataset.use_appearance_code:
+            self.appearance_codes = self.create_learnable_codes((self.train_size, 32))
+            trainable_parameters.append(self.appearance_codes)
+        if cfg.dataset.use_deformation_code:
+            self.deformation_codes = self.create_learnable_codes((self.train_size, cfg.dataset.embedding_vector_dim))
+            trainable_parameters.append(self.deformation_codes)
+        if cfg.dataset.refine_pose:
+            self.refine_pose_params = self.create_learnable_codes((self.train_size, 6))
+            trainable_parameters.append(self.refine_pose_params)
+
+        return trainable_parameters
+
+    def create_learnable_codes(self, code_shape: Tuple[int, int]):
+        print("initialized latent codes with shape %d X %d" % (code_shape[0], code_shape[1]))
+        return torch.zeros(code_shape[0], code_shape[1], device=self.device).requires_grad_()
