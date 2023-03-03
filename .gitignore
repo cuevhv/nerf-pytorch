@@ -139,3 +139,4 @@ out/
 .vscode
 
 **.mp4
+**.pth
