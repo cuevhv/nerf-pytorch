@@ -142,12 +142,12 @@ def predict_and_render_radiance(
         encode_ldmks_fn,
         expressions=expressions,
         landmarks3d=landmarks3d,
-        appearance_codes=nerf_network.appearance_codes,
-        deformation_codes=nerf_network.deformation_codes,
+        appearance_codes=nerf_network.slice_code(nerf_network.appearance_codes),
+        deformation_codes=nerf_network.slice_code(nerf_network.deformation_codes),
         cutoff_type=cutoff_type,
         embed_face_body=embed_face_body,
         embed_face_body_separately=embed_face_body_separately,
-        refine_pose=nerf_network.deformation_codes,
+        refine_pose=nerf_network.refine_pose,
     )
     if background_prior is not None:
         # make the last sample of the ray be equal to the background
@@ -218,8 +218,8 @@ def predict_and_render_radiance(
             encode_ldmks_fn,
             expressions=expressions,
             landmarks3d=landmarks3d,
-            appearance_codes=nerf_network.appearance_codes,
-            deformation_codes=nerf_network.deformation_codes,
+            appearance_codes=nerf_network.slice_code(nerf_network.appearance_codes),
+            deformation_codes=nerf_network.slice_code(nerf_network.deformation_codes),
             cutoff_type=cutoff_type,
             embed_face_body=embed_face_body,
             embed_face_body_separately=embed_face_body_separately,
@@ -300,8 +300,6 @@ def run_one_iter_of_nerf(
     width,
     focal_length,
     nerf_network,
-    # model_coarse,
-    # model_fine,
     ray_origins,
     ray_directions,
     options,
@@ -312,13 +310,10 @@ def run_one_iter_of_nerf(
     expressions=None,
     background_prior=None,
     landmarks3d=None,
-    # appearance_codes=None,
-    # deformation_codes=None,
     use_ldmks_dist=False,
     cutoff_type=None,
     embed_face_body=False,
     embed_face_body_separately=False,
-    # refine_pose=None,
 ):
     viewdirs = None
     if options.nerf.use_viewdirs:
