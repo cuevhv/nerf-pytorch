@@ -140,9 +140,9 @@ def main():
     if hasattr(cfg.dataset, "mask_face") and cfg.dataset.mask_face:
         from utils.face_parsing.bisenet import BiseNet
         import requests
-        weight_path = "utils/face_parcing/79999_iter.pth"
+        weight_path = "utils/face_parsing/79999_iter.pth"
         if not os.path.exists(weight_path):
-            print("downloading weights for face parcing")
+            print("downloading weights for face parsing")
             url = "https://drive.google.com/uc?id=154JgKpzCPW82qINcVieuPH3fZ2e0P812&export=download"
             response = requests.get(url)
             open(weight_path, "wb").write(response.content)
@@ -442,38 +442,37 @@ def main():
                 )
                 target_ray_values = target_s
 
-            coarse_loss = torch.nn.functional.mse_loss(
-                rgb_coarse[..., :3], target_ray_values[..., :3]
-            )
-            fine_loss = None
-            if rgb_fine is not None:
-                fine_loss = torch.nn.functional.mse_loss(
-                    rgb_fine[..., :3], target_ray_values[..., :3]
+                coarse_loss = torch.nn.functional.mse_loss(
+                    rgb_coarse[..., :3], target_ray_values[..., :3]
                 )
-            # loss = torch.nn.functional.mse_loss(rgb_pred[..., :3], target_s[..., :3])
-            loss = 0.0
-            loss_nerf, loss_appearance_codes, loss_deformation_codes = 0.0, 0.0, 0.0
-            # if fine_loss is not None:
-            #     loss = fine_loss
-            # else:
-            #     loss = coarse_loss
-            loss_nerf = coarse_loss + (fine_loss if fine_loss is not None else 0.0)
-            # loss = loss_nerf
+                fine_loss = None
+                if rgb_fine is not None:
+                    fine_loss = torch.nn.functional.mse_loss(
+                        rgb_fine[..., :3], target_ray_values[..., :3]
+                    )
+                # loss = torch.nn.functional.mse_loss(rgb_pred[..., :3], target_s[..., :3])
+                loss = 0.0
+                loss_nerf, loss_appearance_codes, loss_deformation_codes = 0.0, 0.0, 0.0
+                # if fine_loss is not None:
+                #     loss = fine_loss
+                # else:
+                #     loss = coarse_loss
+                loss_nerf = coarse_loss + (fine_loss if fine_loss is not None else 0.0)
+                # loss = loss_nerf
+                # TODO: indent this part
+                if cfg.optimizer.appearance_code and cfg.dataset.use_appearance_code:
+                    loss_appearance_codes = torch.linalg.norm(appearance_codes[img_idx])
+                    # loss = loss + 0.005*loss_appearance_codes
 
-        # TODO: indent this part
-        if cfg.optimizer.appearance_code and cfg.dataset.use_appearance_code:
-            loss_appearance_codes = torch.linalg.norm(appearance_codes[img_idx])
-            # loss = loss + 0.005*loss_appearance_codes
+                if cfg.optimizer.deformation_code and cfg.dataset.use_deformation_code:
+                    if cfg.dataset.embed_face_body:
+                        loss_deformation_codes = torch.linalg.norm(deformation_codes[img_idx, :deform_size//2]) + \
+                                                        torch.linalg.norm(deformation_codes[img_idx, deform_size//2:])
+                    else:
+                        loss_deformation_codes = torch.linalg.norm(deformation_codes[img_idx])
+                    # loss = loss + 0.005*loss_deformation_codes
 
-        if cfg.optimizer.deformation_code and cfg.dataset.use_deformation_code:
-            if cfg.dataset.embed_face_body:
-                loss_deformation_codes = torch.linalg.norm(deformation_codes[img_idx, :deform_size//2]) + \
-                                                torch.linalg.norm(deformation_codes[img_idx, deform_size//2:])
-            else:
-                loss_deformation_codes = torch.linalg.norm(deformation_codes[img_idx])
-            # loss = loss + 0.005*loss_deformation_codes
-
-        loss = loss_nerf + 0.005*loss_appearance_codes + 0.005*loss_deformation_codes
+                loss = loss_nerf + 0.005*loss_appearance_codes + 0.005*loss_deformation_codes
 
         if use_amp:
             grad_scaler.scale(loss).backward()
