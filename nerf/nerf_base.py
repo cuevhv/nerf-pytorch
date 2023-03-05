@@ -4,7 +4,7 @@ import os
 from typing import Tuple
 
 
-class nerf_base(object):
+class NerfBase(object):
     def __init__(self, train_size, device) -> None:
         self.train_size = train_size  # len(i_train)
         self.model_coarse = None
@@ -14,6 +14,8 @@ class nerf_base(object):
         self.refine_pose_params = None
         self.optimizer = None
         self.device = device
+        self.img_idx = None
+        self.refine_pose = None
 
 
     def create_nerf_network(self, cfg, models):
@@ -63,8 +65,8 @@ class nerf_base(object):
             self.model_fine.to(self.device)
 
 
-    def init_network(self, cfg, networks):
-        self.create_nerf_network(cfg, networks)
+    def init_network(self, cfg, models):
+        self.create_nerf_network(cfg, models)
         trainable_parameters = list(self.model_coarse.parameters())
         if self.model_fine is not None:
             trainable_parameters += list(self.model_fine.parameters())
@@ -80,8 +82,32 @@ class nerf_base(object):
             self.refine_pose_params = self.create_learnable_codes((self.train_size, 6))
             trainable_parameters.append(self.refine_pose_params)
 
+        # return all trainable parameters
         return trainable_parameters
 
     def create_learnable_codes(self, code_shape: Tuple[int, int]):
         print("initialized latent codes with shape %d X %d" % (code_shape[0], code_shape[1]))
         return torch.zeros(code_shape[0], code_shape[1], device=self.device).requires_grad_()
+
+
+    def load_checkpoint(self, checkpoint, optim):
+        self.model_coarse.load_state_dict(checkpoint["model_coarse_state_dict"])
+        if checkpoint["model_fine_state_dict"]:
+            self.model_fine.load_state_dict(checkpoint["model_fine_state_dict"])
+        if "appearance_codes" in checkpoint and checkpoint["appearance_codes"] is not None:
+            print("loading appearance codes from checkpoint")
+            self.appearance_codes = torch.nn.Parameter(checkpoint['appearance_codes'].to(device))
+        if "deformation_codes" in checkpoint and checkpoint["deformation_codes"] is not None:
+            print("loading deformation codes from checkpoint")
+            self.deformation_codes = torch.nn.Parameter(checkpoint['deformation_codes'].to(device))
+        if "refine_pose_params" in checkpoint and checkpoint["refine_pose_params"] is not None:
+            print("loading refine pose params from checkpoint")
+            self.refine_pose_params = torch.nn.Parameter(checkpoint['refine_pose_params'].to(device))
+
+        print("loading optimizer checkpoint")
+        optim.load_state_dict(checkpoint["optimizer_state_dict"])
+
+
+    def slice_code(self, learnable_code):
+        if learnable_code is not None:
+            return learnable_code[self.img_idx].to(self.device)
