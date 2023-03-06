@@ -160,6 +160,7 @@ def main():
 
     # Initialize optimizer.
     use_amp = hasattr(cfg.optimizer, "use_amp") and cfg.optimizer.use_amp
+    print("using amp:", use_amp)
     if use_amp:
         grad_scaler = torch.cuda.amp.GradScaler(enabled=use_amp)
         optimizer = getattr(torch.optim, cfg.optimizer.type)(
@@ -308,7 +309,7 @@ def main():
         else:
             loss.backward()
             optimizer.step()
-            optimizer.zero_grad()
+        optimizer.zero_grad()
         psnr = mse2psnr(losses_out["loss_nerf"])
 
         # Learning rate updates
@@ -395,30 +396,31 @@ def main():
 
                     nerf_network.img_idx = img_idx
                     nerf_network.refine_pose = i/2e5 if cfg.dataset.refine_pose else None  # 2e5 following barf paper
-                    rgb_coarse, _, _, rgb_fine, _, _ ,weights_background_sample = run_one_iter_of_nerf(
-                        H,
-                        W,
-                        focal,
-                        nerf_network,
-                        ray_origins,
-                        ray_directions,
-                        cfg,
-                        mode="validation",
-                        encode_position_fn=encode_position_fn,
-                        encode_direction_fn=encode_direction_fn,
-                        encode_ldmks_fn=encode_ldmks_fn,
-                        expressions=expressions_target,
-                        # send all the background to generate the test image
-                        background_prior=background_img.view(-1, 3) if cfg.dataset.fix_background else None,
-                        landmarks3d=landmarks3d_target,
-                        use_ldmks_dist=cfg.dataset.use_ldmks_dist,
-                        cutoff_type=None if cfg.dataset.cutoff_type == "None" else cfg.dataset.cutoff_type,
-                        embed_face_body=cfg.dataset.embed_face_body,
-                        embed_face_body_separately=cfg.dataset.embed_face_body_separately,
-                    )
-                    target_ray_values = img_target
+                    with torch.autocast(device_type='cuda', dtype=torch.float16, enabled=use_amp):
+                        rgb_coarse, _, _, rgb_fine, _, _ ,weights_background_sample = run_one_iter_of_nerf(
+                            H,
+                            W,
+                            focal,
+                            nerf_network,
+                            ray_origins,
+                            ray_directions,
+                            cfg,
+                            mode="validation",
+                            encode_position_fn=encode_position_fn,
+                            encode_direction_fn=encode_direction_fn,
+                            encode_ldmks_fn=encode_ldmks_fn,
+                            expressions=expressions_target,
+                            # send all the background to generate the test image
+                            background_prior=background_img.view(-1, 3) if cfg.dataset.fix_background else None,
+                            landmarks3d=landmarks3d_target,
+                            use_ldmks_dist=cfg.dataset.use_ldmks_dist,
+                            cutoff_type=None if cfg.dataset.cutoff_type == "None" else cfg.dataset.cutoff_type,
+                            embed_face_body=cfg.dataset.embed_face_body,
+                            embed_face_body_separately=cfg.dataset.embed_face_body_separately,
+                        )
+                        target_ray_values = img_target
 
-                _, losses_out = l2_nerf_loss(rgb_coarse, rgb_fine, target_ray_values)
+                        _, losses_out = l2_nerf_loss(rgb_coarse, rgb_fine, target_ray_values)
 
                 loss += losses_out["loss_nerf"]
                 total_coarse_loss += losses_out["coarse_loss"]
