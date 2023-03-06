@@ -1043,7 +1043,7 @@ class FaceNerfPaperNeRFModel_concat(torch.nn.Module):
         alpha = trunc_exp(alpha)
 
         if self.use_viewdirs:
-            dirs     = self.direction_encoding(dirs.view(-1, dirs.shape[-1]))
+            dirs = self.direction_encoding(dirs.view(-1, dirs.shape[-1]))
             if self.use_appearance_code:
                 appearance_codes = appearance_codes.repeat(xyz.shape[0], 1)
                 x = self.layers_dir[0](torch.cat((feat, dirs, appearance_codes), -1))
