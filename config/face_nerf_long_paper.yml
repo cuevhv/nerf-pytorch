@@ -7,9 +7,9 @@ experiment:
   # Seed for random number generators (for repeatability).
   randomseed: 42  # Cause, why not?
   # Number of training iterations.
-  train_iters: 200000
+  train_iters: 400000
   # Number of training iterations after which to validate.
-  validate_every: 1000
+  validate_every: 2000
   # Number of training iterations after which to checkpoint.
   save_every: 5000
   # Number of training iterations after which to print progress.
@@ -18,7 +18,7 @@ experiment:
 # Dataset parameters.
 dataset:
   # Type of dataset (Blender vs LLFF vs DeepVoxels vs something else)
-  type: face
+  type: face_dataloader
   # Base directory of dataset.
   basedir: data/nerf_synthetic/face
   # Optionally, provide a path to the pre-cached dataset dir. This
@@ -65,7 +65,7 @@ dataset:
   # refine pose
   refine_pose: False
   # mask only face
-  mask_face: True
+  mask_face: False
 
 
 # Model parameters.
@@ -153,7 +153,7 @@ optimizer:
   # optimize deformation
   deformation_code: False
   # use amp
-  # use_amp: True
+  use_amp: True
 
 # Learning rate schedule.
 scheduler:
@@ -174,10 +174,10 @@ nerf:
   train:
     # Number of random rays to retain from each image.
     # These sampled rays are used for training, and the others are discarded.
-    num_random_rays: 2048  # 1024  # 32 * 32 * 4
+    num_random_rays: 4096 #prev 2048  # 1024  # 32 * 32 * 4
     # Size of each chunk (rays are batched into "chunks" and passed through
     # the network)
-    chunksize: 2048 #4096  # 131072  # 1024 * 32
+    chunksize: 131072 # prev 2048 #4096  # 131072  # 1024 * 32
     # Whether or not to perturb the sampled depth values.
     perturb: True
     # Number of depth samples per ray for the coarse network.
@@ -195,7 +195,7 @@ nerf:
   validation:
     # Number of random rays to retain from each image.
     # These sampled rays are used for training, and the others are discarded.
-    chunksize: 8192 #131072   # 1024 * 32
+    chunksize: 131072 # prev 8192 #131072   # 1024 * 32
     # Whether or not to perturb the sampled depth values.
     perturb: True
     # Number of depth samples per ray for the coarse network.

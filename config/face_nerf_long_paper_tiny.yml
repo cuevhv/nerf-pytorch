@@ -173,14 +173,14 @@ nerf:
   train:
     # Number of random rays to retain from each image.
     # These sampled rays are used for training, and the others are discarded.
-    num_random_rays: 2048  # 1024  # 32 * 32 * 4
+    num_random_rays: 4096 #2048  # 1024  # 32 * 32 * 4
     # Size of each chunk (rays are batched into "chunks" and passed through
     # the network)
-    chunksize: 64 #4096  # 131072  # 1024 * 32
+    chunksize: 131072 #4096  # 131072  # 1024 * 32
     # Whether or not to perturb the sampled depth values.
     perturb: True
     # Number of depth samples per ray for the coarse network.
-    num_coarse: 64
+    num_coarse: 256
     # Number of depth samples per ray for the fine network.
     num_fine: 0
     # Whether to render models using a white background.
@@ -194,11 +194,11 @@ nerf:
   validation:
     # Number of random rays to retain from each image.
     # These sampled rays are used for training, and the others are discarded.
-    chunksize: 64 #131072   # 1024 * 32
+    chunksize: 131072 #131072   # 1024 * 32
     # Whether or not to perturb the sampled depth values.
     perturb: True
     # Number of depth samples per ray for the coarse network.
-    num_coarse: 64
+    num_coarse: 256
     # Number of depth samples per ray for the fine network.
     num_fine: 0
     # Whether to render models using a white background.
