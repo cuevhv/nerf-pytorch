@@ -42,7 +42,7 @@ def run_network(network_fn, pts, ray_batch, chunksize, embed_fn, embeddirs_fn, e
             tau = 100  # sharpness
             threshold_dist = 0.09  # threshold distance
             cutoff_w = 1-torch.sigmoid(tau*(dist_pts_lndmks3d-threshold_dist))
-            # dir_pts_ldmks3d = dir_pts_ldmks3d*cutoff_w[:,:,None]
+            dir_pts_ldmks3d = dir_pts_ldmks3d*cutoff_w[:,:,None]
             # p_np = cutoff_w.min(axis=-1)[0].detach().cpu().numpy()
             if embed_face_body:
                 highest_cutoff_w = cutoff_w.max(axis=-1)[0]
