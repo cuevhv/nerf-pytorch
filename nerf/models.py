@@ -277,6 +277,7 @@ class FlexibleNeRFaceModel(torch.nn.Module):
         num_train_images: int = 0,
         embedding_vector_dim: int = 32,  # based on nerface
         landmarks3d_last: bool = False,
+        n_landmarks: int = 68,
     ):
         super(FlexibleNeRFaceModel, self).__init__()
 
@@ -286,7 +287,7 @@ class FlexibleNeRFaceModel(torch.nn.Module):
 
         # TODO: change expression and lanrmsrks3d value to depend on cfg
         include_expresion = 50 if use_expression else 0
-        include_landmarks3d = 68 if use_landmarks3d else 0
+        include_landmarks3d = n_landmarks if use_landmarks3d else 0
 
         self.landmarks3d_last = landmarks3d_last
 
@@ -417,6 +418,7 @@ class FaceNerfPaperNeRFModel(torch.nn.Module):
         embedding_vector_dim=32,
         landmarks3d_last=False,
         encode_ldmks3d=False,
+        n_landmarks: int = 68,
 
     ):
         super(FaceNerfPaperNeRFModel, self).__init__()
@@ -426,7 +428,7 @@ class FaceNerfPaperNeRFModel(torch.nn.Module):
         include_input_ldmks = 1 if include_input_ldmks else 0
 
         include_expression = 50 if use_expression else 0
-        include_landmarks3d = 68 if use_landmarks3d else 0
+        include_landmarks3d = n_landmarks if use_landmarks3d else 0
 
         self.landmarks3d_last = landmarks3d_last
 
@@ -579,6 +581,7 @@ class FaceNerfPaperNeRFModelCond(torch.nn.Module):
         embedding_vector_dim=32,
         landmarks3d_last=False,
         encode_ldmks3d=False,
+        n_landmarks: int = 68,
 
     ):
         super(FaceNerfPaperNeRFModelCond, self).__init__()
@@ -588,7 +591,7 @@ class FaceNerfPaperNeRFModelCond(torch.nn.Module):
         include_input_ldmks = 1 if include_input_ldmks else 0
 
         include_expression = 50 if use_expression else 0
-        include_landmarks3d = 68 if use_landmarks3d else 0
+        include_landmarks3d = n_landmarks if use_landmarks3d else 0
 
         self.landmarks3d_last = landmarks3d_last
 
@@ -727,6 +730,7 @@ class FaceNerfPaperNeRFModelDualCond(torch.nn.Module):
         embedding_vector_dim=32,
         landmarks3d_last=False,
         encode_ldmks3d=False,
+        n_landmarks: int = 68,
 
     ):
         super(FaceNerfPaperNeRFModelDualCond, self).__init__()
@@ -735,7 +739,7 @@ class FaceNerfPaperNeRFModelDualCond(torch.nn.Module):
         include_input_ldmks = 1 if include_input_ldmks else 0
 
         include_expression = 50 if use_expression else 0
-        include_landmarks3d = 68 if use_landmarks3d else 0
+        include_landmarks3d = n_landmarks if use_landmarks3d else 0
 
         self.landmarks3d_last = landmarks3d_last
 
@@ -925,6 +929,7 @@ class FaceNerfPaperNeRFModel_concat(torch.nn.Module):
         embedding_vector_dim=32,
         landmarks3d_last=False,
         encode_ldmks3d=False,
+        n_landmarks: int = 68,
 
     ):
         super(FaceNerfPaperNeRFModel_concat, self).__init__()
@@ -934,7 +939,7 @@ class FaceNerfPaperNeRFModel_concat(torch.nn.Module):
         include_input_ldmks = 1 if include_input_ldmks else 0
 
         include_expression = 50 if use_expression else 0
-        include_landmarks3d = 68 if use_landmarks3d else 0
+        include_landmarks3d = n_landmarks if use_landmarks3d else 0
 
         self.landmarks3d_last = landmarks3d_last
 
@@ -1084,6 +1089,7 @@ class FaceNerfPaperNeRFModelTinyCuda(torch.nn.Module):
         embedding_vector_dim=32,
         landmarks3d_last=False,
         encode_ldmks3d=False,
+        n_landmarks: int = 68,
 
     ):
         super(FaceNerfPaperNeRFModelTinyCuda, self).__init__()
@@ -1093,7 +1099,7 @@ class FaceNerfPaperNeRFModelTinyCuda(torch.nn.Module):
         include_input_ldmks = 1 if include_input_ldmks else 0
 
         include_expression = 50 if use_expression else 0
-        include_landmarks3d = 68 if use_landmarks3d else 0
+        include_landmarks3d = n_landmarks if use_landmarks3d else 0
 
         self.landmarks3d_last = landmarks3d_last
 
