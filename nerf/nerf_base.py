@@ -96,16 +96,17 @@ class NerfBase(object):
             self.model_fine.load_state_dict(checkpoint["model_fine_state_dict"])
         if "appearance_codes" in checkpoint and checkpoint["appearance_codes"] is not None:
             print("loading appearance codes from checkpoint")
-            self.appearance_codes = torch.nn.Parameter(checkpoint['appearance_codes'].to(device))
+            self.appearance_codes = torch.nn.Parameter(checkpoint['appearance_codes'].to(self.device))
         if "deformation_codes" in checkpoint and checkpoint["deformation_codes"] is not None:
             print("loading deformation codes from checkpoint")
-            self.deformation_codes = torch.nn.Parameter(checkpoint['deformation_codes'].to(device))
+            self.deformation_codes = torch.nn.Parameter(checkpoint['deformation_codes'].to(self.device))
         if "refine_pose_params" in checkpoint and checkpoint["refine_pose_params"] is not None:
             print("loading refine pose params from checkpoint")
-            self.refine_pose_params = torch.nn.Parameter(checkpoint['refine_pose_params'].to(device))
+            self.refine_pose_params = torch.nn.Parameter(checkpoint['refine_pose_params'].to(self.device))
 
-        print("loading optimizer checkpoint")
-        optim.load_state_dict(checkpoint["optimizer_state_dict"])
+        if optim is not None:
+            print("loading optimizer checkpoint")
+            optim.load_state_dict(checkpoint["optimizer_state_dict"])
 
 
     def slice_code(self, learnable_code):
