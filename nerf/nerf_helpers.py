@@ -137,7 +137,7 @@ def positional_encoding(
         encoding = [w*tensor] if include_input else []
     else:
         encoding = [tensor] if include_input else []
-        
+
     frequency_bands = None
     if log_sampling:
         frequency_bands = 2.0 ** torch.linspace(
@@ -164,7 +164,7 @@ def positional_encoding(
                 barf_weight = (1-np.cos(np.clip((alpha-i), a_min=0,a_max=1)*np.pi))/2
             else:
                 barf_weight = 1.
-            
+
             if cutoff_type == "only_sincos" and weights is not None:
                 encoding.append(barf_weight*w*func(tensor * freq))
             else:
@@ -176,15 +176,28 @@ def positional_encoding(
     else:
         return torch.cat(encoding, dim=-1)
 
+def spherical_harmonics_encoding(x, direction_encoding):
+    b, n_ldmks, d = x.shape
+    x = x.reshape((-1, 3))
+    return direction_encoding(x).reshape((b, n_ldmks, -1))
+
 
 def get_embedding_function(
-    num_encoding_functions=6, include_input=True, log_sampling=True,
+    num_encoding_functions=6, include_input=True, log_sampling=True, encoding_type="pos_enc",
 ):
     r"""Returns a lambda function that internally calls positional_encoding.
     """
-    return lambda x, weights, cutoff_type, barf_progress: positional_encoding(
-        x, num_encoding_functions, include_input, log_sampling, weights, cutoff_type, barf_progress,
-    )
+    if encoding_type == "spherical_harmonics":
+        import tinycudann as tcnn
+        direction_encoding = tcnn.Encoding(n_input_dims=3, encoding_config={
+                "otype": "SphericalHarmonics", "degree": num_encoding_functions,},)
+        return lambda x: spherical_harmonics_encoding(x, direction_encoding)
+
+    elif encoding_type.lower() == "pos_enc":
+        return lambda x, weights, cutoff_type, barf_progress: positional_encoding(
+            x, num_encoding_functions, include_input, log_sampling, weights, cutoff_type, barf_progress,)
+
+    return lambda x: x
 
 
 def ndc_rays(H, W, focal, near, rays_o, rays_d):
@@ -261,7 +274,7 @@ def sample_pdf(bins, weights, num_samples, det=False):
     # inds = torchsearchsorted.searchsorted(
     #     cdf.contiguous(), u.contiguous(), side="right"
     # )
-    inds = torch.searchsorted(cdf.contiguous(), u.contiguous(), right=True) 
+    inds = torch.searchsorted(cdf.contiguous(), u.contiguous(), right=True)
 
     below = torch.max(torch.zeros_like(inds), inds - 1)
     above = torch.min((cdf.shape[-1] - 1) * torch.ones_like(inds), inds)
