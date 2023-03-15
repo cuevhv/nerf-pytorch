@@ -20,7 +20,7 @@ def get_pts_landmarks3d_dist(pts, landmarks3d):
     #return dist.reshape(pts.shape[0], -1)  # [N, K, 3] -> [N, K*3]
 
 
-def run_network(network_fn, pts, ray_batch, chunksize, embed_fn, embeddirs_fn, embedldmks_fn,
+def run_network(network_fn, pts, ray_batch, chunksize, embed_fn, embeddirs_fn, embedldmks_fn, embed_ldmks_dir_fn,
                 expressions=None, landmarks3d=None, appearance_codes=None, deformation_codes=None,
                 cutoff_type=None, embed_face_body=False, embed_face_body_separately=False,
                 refine_pose=None):
@@ -42,6 +42,8 @@ def run_network(network_fn, pts, ray_batch, chunksize, embed_fn, embeddirs_fn, e
             tau = 100  # sharpness
             threshold_dist = 0.09  # threshold distance
             cutoff_w = 1-torch.sigmoid(tau*(dist_pts_lndmks3d-threshold_dist))
+
+            dir_pts_ldmks3d = embed_ldmks_dir_fn(dir_pts_ldmks3d)
             dir_pts_ldmks3d = dir_pts_ldmks3d*cutoff_w[:,:,None]
             # p_np = cutoff_w.min(axis=-1)[0].detach().cpu().numpy()
             if embed_face_body:
@@ -93,6 +95,7 @@ def predict_and_render_radiance(
     encode_position_fn=None,
     encode_direction_fn=None,
     encode_ldmks_fn=None,
+    encode_ldmks_dir_fn=None,
     expressions=None,
     background_prior=None,
     landmarks3d=None,
@@ -140,6 +143,7 @@ def predict_and_render_radiance(
         encode_position_fn,
         encode_direction_fn,
         encode_ldmks_fn,
+        encode_ldmks_dir_fn,
         expressions=expressions,
         landmarks3d=landmarks3d,
         appearance_codes=nerf_network.slice_code(nerf_network.appearance_codes),
@@ -216,6 +220,7 @@ def predict_and_render_radiance(
             encode_position_fn,
             encode_direction_fn,
             encode_ldmks_fn,
+            encode_ldmks_dir_fn,
             expressions=expressions,
             landmarks3d=landmarks3d,
             appearance_codes=nerf_network.slice_code(nerf_network.appearance_codes),
@@ -307,6 +312,7 @@ def run_one_iter_of_nerf(
     encode_position_fn=None,
     encode_direction_fn=None,
     encode_ldmks_fn=None,
+    encode_ldmks_dir_fn=None,
     expressions=None,
     background_prior=None,
     landmarks3d=None,
@@ -357,6 +363,7 @@ def run_one_iter_of_nerf(
             encode_position_fn=encode_position_fn,
             encode_direction_fn=encode_direction_fn,
             encode_ldmks_fn=encode_ldmks_fn,
+            encode_ldmks_dir_fn=encode_ldmks_dir_fn,
             expressions=expressions,
             background_prior=background_prior[i] if background_prior is not None else background_prior,
             landmarks3d=landmarks3d if landmarks3d is not None else None,
