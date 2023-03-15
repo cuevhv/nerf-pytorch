@@ -27,8 +27,9 @@ class BiseNet(object):
 
 
     def mask_img(self, img, bg_list: List[str]):
+        # breakpoint()
         for idx in bg_list:
-            img[img == idx] = 0
+            img[img == self.name2idx[idx]] = 0
         img[img > 0] = 1
         return img
 
