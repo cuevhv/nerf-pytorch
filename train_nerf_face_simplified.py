@@ -137,6 +137,15 @@ def main():
         log_sampling=cfg.models.coarse.log_sampling_ldmks,
     )
 
+    encode_ldmks_dir_fn = get_embedding_function(
+        num_encoding_functions=cfg.models.coarse.num_encoding_fn_dir_ldmks,
+        include_input=cfg.models.coarse.include_input_ldmks,
+        log_sampling=cfg.models.coarse.log_sampling_ldmks,
+        encoding_type=cfg.nerf.encode_ldmks_direction_fn \
+                    if hasattr(cfg.nerf, "encode_ldmks_direction_fn") else "none",
+    )
+
+
     if cfg.dataset.fix_background:
         # based on nerface https://github.com/gafniguy/4D-Facial-Avatars/blob/989be64216df754a4a34f8f53d7a71af130b57d5/nerface_code/nerf-pytorch/train_transformed_rays.py#L160
         print("loading gt background to condition on")
@@ -289,6 +298,7 @@ def main():
                 encode_position_fn=encode_position_fn,
                 encode_direction_fn=encode_direction_fn,
                 encode_ldmks_fn=encode_ldmks_fn,
+                encode_ldmks_dir_fn=encode_ldmks_dir_fn,
                 expressions=expressions_target,
                 background_prior=background_ray_values,
                 landmarks3d=landmarks3d_target,
@@ -409,6 +419,7 @@ def main():
                             encode_position_fn=encode_position_fn,
                             encode_direction_fn=encode_direction_fn,
                             encode_ldmks_fn=encode_ldmks_fn,
+                            encode_ldmks_dir_fn=encode_ldmks_dir_fn,
                             expressions=expressions_target,
                             # send all the background to generate the test image
                             background_prior=background_img.view(-1, 3) if cfg.dataset.fix_background else None,
