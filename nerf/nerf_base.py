@@ -23,6 +23,8 @@ class NerfBase(object):
         num_encoding_fn_xyz=cfg.models.coarse.num_encoding_fn_xyz,
         num_encoding_fn_dir=cfg.models.coarse.num_encoding_fn_dir,
         num_encoding_fn_ldmks=cfg.models.coarse.num_encoding_fn_ldmks,
+        num_encoding_fn_dir_ldmks= cfg.models.coarse.num_encoding_fn_dir_ldmks \
+                            if hasattr(cfg.nerf, "encode_ldmks_direction_fn") else 0,
         include_input_xyz=cfg.models.coarse.include_input_xyz,
         include_input_dir=cfg.models.coarse.include_input_dir,
         include_input_ldmks=cfg.models.coarse.include_input_ldmks,
@@ -47,6 +49,8 @@ class NerfBase(object):
             num_encoding_fn_xyz=cfg.models.fine.num_encoding_fn_xyz,
             num_encoding_fn_dir=cfg.models.fine.num_encoding_fn_dir,
             num_encoding_fn_ldmks=cfg.models.coarse.num_encoding_fn_ldmks,
+            num_encoding_fn_dir_ldmks= cfg.models.coarse.num_encoding_fn_dir_ldmks \
+                                        if hasattr(cfg.nerf, "encode_ldmks_direction_fn") else 0,
             include_input_xyz=cfg.models.fine.include_input_xyz,
             include_input_dir=cfg.models.fine.include_input_dir,
             include_input_ldmks=cfg.models.coarse.include_input_ldmks,

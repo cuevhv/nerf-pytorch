@@ -1065,6 +1065,176 @@ class FaceNerfPaperNeRFModel_concat(torch.nn.Module):
 
 
 
+class FaceNerfPaperNeRFModel_concat_spherical(torch.nn.Module):
+    r"""Similar to FaceNerfPaperNerFModel but it concatenates the ldmks3d features
+     rather than summing them. It also uses SH to encode the direction, so make sure
+      the direction has only shape of [B, 3] """
+
+    def __init__(
+        self,
+        num_layers=8,
+        hidden_size=256,
+        skip_connect_every=4,
+        num_encoding_fn_xyz=6,
+        num_encoding_fn_dir=4,
+        num_encoding_fn_ldmks=4,
+        num_encoding_fn_dir_ldmks=4,
+        include_input_xyz=True,
+        include_input_dir=True,
+        include_input_ldmks=True,
+        use_viewdirs=True,
+        use_expression=True,
+        use_landmarks3d: bool = True,
+        use_appearance_code: bool =True,
+        use_deformation_code: bool = True,
+        num_train_images: int = 0,
+        embedding_vector_dim=32,
+        landmarks3d_last=False,
+        encode_ldmks3d=False,
+        n_landmarks: int = 68,
+
+    ):
+        super(FaceNerfPaperNeRFModel_concat_spherical, self).__init__()
+
+        include_input_xyz = 3 if include_input_xyz else 0
+        include_input_dir = 3 if include_input_dir else 0
+        include_input_ldmks = 1 if include_input_ldmks else 0
+
+        include_expression = 50 if use_expression else 0
+        include_landmarks3d = n_landmarks if use_landmarks3d else 0
+
+        self.landmarks3d_last = landmarks3d_last
+
+        self.dim_xyz = include_input_xyz + 2 * 3 * num_encoding_fn_xyz
+        self.dim_dir = include_input_dir + 2 * 3 * num_encoding_fn_dir
+        self.dim_expression = include_expression# + 2 * 3 * num_encoding_fn_expr
+        self.dim_ldmks_dir = include_landmarks3d * num_encoding_fn_dir_ldmks**2
+        self.dim_landmarks3d = include_input_ldmks*include_landmarks3d + 2 * include_landmarks3d * num_encoding_fn_ldmks
+        self.dim_full_landmarks3d = self.dim_landmarks3d  + self.dim_ldmks_dir
+
+        self.encode_ldmks3d = encode_ldmks3d
+        if self.encode_ldmks3d:
+            self.layers_ldmks3d_enc = torch.nn.ModuleList()
+            self.layers_ldmks3d_enc.append(torch.nn.Linear(self.dim_landmarks3d+self.dim_xyz, 128))
+            self.layers_ldmks3d_enc.append(torch.nn.Linear(128, 128))
+            self.layers_ldmks3d_enc.append(torch.nn.Linear(128, self.dim_xyz))
+            # torch.nn.init.uniform_(self.layers_ldmks3d_enc[-1].weight, a=-1e-4, b=1e-4)
+
+            self.layers_ldmks3d_dir_enc = torch.nn.ModuleList()
+            self.layers_ldmks3d_dir_enc.append(torch.nn.Linear(self.dim_ldmks_dir, 128))
+            self.layers_ldmks3d_dir_enc.append(torch.nn.Linear(128, 128))
+            self.layers_ldmks3d_dir_enc.append(torch.nn.Linear(128, self.dim_xyz))
+            # torch.nn.init.uniform_(self.layers_ldmks3d_enc[-1].weight, a=-1e-4, b=1e-4)
+
+        # add appearance code
+        self.use_appearance_code = use_appearance_code
+        self.use_deformation_code = use_deformation_code
+        self.dim_appearance_codes = embedding_vector_dim if use_appearance_code else 0
+        self.dim_deformation_codes = embedding_vector_dim if use_deformation_code else 0
+        # self.dim_latent_code = embedding_vector_dim
+
+        self.layers_xyz = torch.nn.ModuleList()
+        self.use_viewdirs = use_viewdirs
+        self.use_landmarks3d = use_landmarks3d
+
+        # dim of the first input group to predict the density
+        input_density_dim = self.dim_xyz + self.dim_expression + self.dim_deformation_codes
+        if not landmarks3d_last:
+            input_density_dim += 2*self.dim_xyz
+
+        self.layers_xyz.append(torch.nn.Linear(input_density_dim, 256))
+        for i in range(1, 6):
+            if i == 3:
+                self.layers_xyz.append(torch.nn.Linear(input_density_dim + 256, 256))
+            else:
+                self.layers_xyz.append(torch.nn.Linear(256, 256))
+        self.fc_feat = torch.nn.Linear(256, 256)
+        self.fc_alpha = torch.nn.Linear(256, 1)
+
+        self.layers_dir = torch.nn.ModuleList()
+
+        assert self.dim_dir == 3, f"The dimension of direction vector is {self.dim_dir} instead of 3."
+        self.direction_encoding = tcnn.Encoding(
+            n_input_dims=3,
+            encoding_config={
+                "otype": "SphericalHarmonics",
+                "degree": 4,
+            },
+        )
+
+        # dim of the second input group to predict the color
+        input_color_dim = self.direction_encoding.n_output_dims + self.dim_appearance_codes
+        if landmarks3d_last:
+            input_color_dim += self.dim_landmarks3d
+
+        self.layers_dir.append(torch.nn.Linear(256 + input_color_dim, 128))
+        for i in range(3):
+            self.layers_dir.append(torch.nn.Linear(128, 128))
+        self.fc_rgb = torch.nn.Linear(128, 3)
+        self.relu = torch.nn.functional.relu
+
+
+    def forward(self, x,  expression=None, appearance_codes=None, deformation_codes=None, **kwargs):
+        if self.use_landmarks3d:
+            if not self.landmarks3d_last:
+                xyz_ldmks, xyz_ldmks_dir, xyz_pts, dirs = x[..., : self.dim_landmarks3d], x[..., self.dim_landmarks3d : self.dim_full_landmarks3d], x[..., self.dim_full_landmarks3d:self.dim_full_landmarks3d+self.dim_xyz], x[..., self.dim_full_landmarks3d+self.dim_xyz :]
+                if self.encode_ldmks3d:
+                    xyz = torch.cat([xyz_ldmks, xyz_pts], dim=-1)
+                    for i in range(len(self.layers_ldmks3d_enc)):
+                        xyz = self.layers_ldmks3d_enc[i](xyz)
+                        xyz_ldmks_dir = self.layers_ldmks3d_dir_enc[i](xyz_ldmks_dir)
+                        if i < len(self.layers_ldmks3d_enc)-1:
+                            xyz = self.relu(xyz)
+                            xyz_ldmks_dir = self.relu(xyz_ldmks_dir)
+                    xyz = torch.cat([xyz, xyz_pts, xyz_ldmks_dir], dim=-1)
+            else:
+                xyz, dirs = x[..., : self.dim_xyz], x[..., self.dim_xyz :]
+        elif self.use_viewdirs:
+            xyz, dirs = x[..., : self.dim_xyz], x[..., self.dim_xyz :]
+        else:
+            xyz = x[..., : self.dim_xyz]
+
+        x = xyz#self.relu(self.layers_xyz[0](xyz))
+        initial = xyz
+        # appearance_codes = appearance_codes.repeat(xyz.shape[0], 1)
+        if self.dim_expression > 0:
+            expr_encoding = (expression * 1 / 3).repeat(xyz.shape[0], 1)
+            initial = torch.cat((initial, expr_encoding), dim=1)
+            # initial = torch.cat((xyz, expr_encoding, appearance_codes), dim=1)
+        if self.use_deformation_code:
+            deformation_codes = deformation_codes.repeat(xyz.shape[0], 1)
+            initial = torch.cat((initial, deformation_codes), dim=1)
+        x = initial
+
+        for i in range(6):
+            if i == 3:
+                x = self.layers_xyz[i](torch.cat((initial, x), -1))
+            else:
+                x = self.layers_xyz[i](x)
+            x = self.relu(x)
+        feat = self.fc_feat(x)
+        alpha = self.fc_alpha(feat)
+        alpha = trunc_exp(alpha)
+
+        if self.use_viewdirs:
+            dirs = self.direction_encoding(dirs.view(-1, dirs.shape[-1]))
+            if self.use_appearance_code:
+                appearance_codes = appearance_codes.repeat(xyz.shape[0], 1)
+                x = self.layers_dir[0](torch.cat((feat, dirs, appearance_codes), -1))
+            else:
+                x = self.layers_dir[0](torch.cat((feat, dirs), -1))
+        else:
+            x = self.layers_dir[0](feat)
+        x = self.relu(x)
+        for i in range(1, 3):
+            x = self.layers_dir[i](x)
+            x = self.relu(x)
+        rgb = self.fc_rgb(x)
+        return torch.cat((rgb, alpha), dim=-1)
+
+
+
+
 class FaceNerfPaperNeRFModelTinyCuda(torch.nn.Module):
     r"""Implements the NeRF model as described in Fig. 7 (appendix) of the
     arXiv submission (v0). """
