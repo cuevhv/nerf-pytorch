@@ -917,6 +917,7 @@ class FaceNerfPaperNeRFModel_concat(torch.nn.Module):
         num_encoding_fn_xyz=6,
         num_encoding_fn_dir=4,
         num_encoding_fn_ldmks=4,
+        num_encoding_fn_dir_ldmks=0,
         include_input_xyz=True,
         include_input_dir=True,
         include_input_ldmks=True,
@@ -1109,6 +1110,8 @@ class FaceNerfPaperNeRFModel_concat_spherical(torch.nn.Module):
         self.dim_dir = include_input_dir + 2 * 3 * num_encoding_fn_dir
         self.dim_expression = include_expression# + 2 * 3 * num_encoding_fn_expr
         self.dim_ldmks_dir = include_landmarks3d * num_encoding_fn_dir_ldmks**2
+        if num_encoding_fn_dir_ldmks == 0:
+            self.dim_ldmks_dir = include_landmarks3d * 3
         self.dim_landmarks3d = include_input_ldmks*include_landmarks3d + 2 * include_landmarks3d * num_encoding_fn_ldmks
         self.dim_full_landmarks3d = self.dim_landmarks3d  + self.dim_ldmks_dir
 
@@ -1140,7 +1143,7 @@ class FaceNerfPaperNeRFModel_concat_spherical(torch.nn.Module):
         # dim of the first input group to predict the density
         input_density_dim = self.dim_xyz + self.dim_expression + self.dim_deformation_codes
         if not landmarks3d_last:
-            input_density_dim += 2*self.dim_xyz
+            input_density_dim += self.dim_xyz + self.dim_xyz
 
         self.layers_xyz.append(torch.nn.Linear(input_density_dim, 256))
         for i in range(1, 6):
