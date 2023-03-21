@@ -249,8 +249,8 @@ def main():
 
         if hasattr(cfg.dataset, "mask_face") and cfg.dataset.mask_face:
             out = face_seg_net.infer(img_target).astype(np.float32)
-            # Mask out image and make background white
-            img_target = img_target*out[:,:,None]+((1-out[:,:, None])*np.random.randn(1,1,3))
+            # Mask out image and make background random
+            img_target = img_target*out[:,:,None]+((1-out[:,:, None])*np.random.uniform(0,1,(1,1,3)))
         img_target = img_target.to(device)
 
 
