@@ -14,6 +14,7 @@ from nerf import (
     CfgNode,
     load_nerface_data,
     get_ray_bundle_nerface,
+    RefinePose,
     get_ray_bundle,
     load_blender_data,
     load_llff_data,
@@ -134,6 +135,14 @@ def main():
         log_sampling=cfg.models.coarse.log_sampling_ldmks,
     )
 
+    encode_ldmks_dir_fn = get_embedding_function(
+        num_encoding_functions=cfg.models.coarse.num_encoding_fn_dir_ldmks,
+        include_input=cfg.models.coarse.include_input_ldmks,
+        log_sampling=cfg.models.coarse.log_sampling_ldmks,
+        encoding_type=cfg.nerf.encode_ldmks_direction_fn \
+                    if hasattr(cfg.nerf, "encode_ldmks_direction_fn") else "none",
+    )
+
     encode_direction_fn = None
     if cfg.models.coarse.use_viewdirs:
         encode_direction_fn = get_embedding_function(
@@ -151,6 +160,9 @@ def main():
         background_img = background_img/255
         print("bg shape", background_img.shape)
         # print("should be ", images[i_train][0].shape)
+        # assert background_img.shape == images[i_train][0].shape
+    elif hasattr(cfg.dataset, "mask_face") and cfg.dataset.mask_face:
+        background_img = torch.ones((H,W,3)).float().to(device)
         # assert background_img.shape == images[i_train][0].shape
     else:
         background_img = None
@@ -203,7 +215,7 @@ def main():
         with torch.no_grad():
             # pose = pose[:3, :4]
             if not use_dataloader:
-                img_target = images[img_idx].to(device)
+                img_target = images[img_idx]
                 pose_target = poses[img_idx, :3, :4].to(device)
                 if expressions is not None:
                     expressions_target = expressions[img_idx].to(device)
@@ -216,7 +228,7 @@ def main():
                     landmarks3d_target = None
             else:
                 data = test_dataset[img_idx]
-                img_target = data["imgs"].to(device)
+                img_target = data["imgs"]
                 pose_target = data["poses"][:3, :4].to(device)
                 names = data["names"]
 
@@ -230,6 +242,14 @@ def main():
                 else:
                     landmarks3d_target = None
 
+            if cfg.dataset.refine_pose:
+                pose_target = RefinePose()(nerf_network.refine_pose_params[img_idx], pose_target)
+
+            if hasattr(cfg.dataset, "mask_face") and cfg.dataset.mask_face:
+                out = face_seg_net.infer(img_target).astype(np.float32)
+                # Mask out image and make background random
+                img_target = img_target*out[:,:,None]+((1-out[:,:, None])*np.random.uniform(0,1,(1,1,3)))
+            img_target = img_target.to(device)
 
 
             ray_origins, ray_directions = get_ray_bundle_nerface(H, W, focal, pose_target)
@@ -249,6 +269,7 @@ def main():
                     encode_position_fn=encode_position_fn,
                     encode_direction_fn=encode_direction_fn,
                     encode_ldmks_fn=encode_ldmks_fn,
+                    encode_ldmks_dir_fn=encode_ldmks_dir_fn,
                     expressions=expressions_target,
                     # send all the background to generate the test image
                     background_prior=background_img.view(-1, 3) if cfg.dataset.fix_background else None,
