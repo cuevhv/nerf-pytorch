@@ -285,7 +285,7 @@ def main():
         nerf_network.img_idx = img_idx
         nerf_network.refine_pose = i/2e5 if cfg.dataset.refine_pose else None # 2e5 following barf paper
         with torch.autocast(device_type='cuda', dtype=torch.float16, enabled=use_amp):
-            rgb_coarse, _, _, rgb_fine, _, _, weights_background_sample = run_one_iter_of_nerf(
+            rgb_coarse, _, _, rgb_fine, _, _, weights_background_sample, weight_bce = run_one_iter_of_nerf(
                 H,
                 W,
                 focal,
@@ -305,12 +305,17 @@ def main():
                 cutoff_type=None if cfg.dataset.cutoff_type == "None" else cfg.dataset.cutoff_type,
                 embed_face_body=cfg.dataset.embed_face_body,
                 embed_face_body_separately=cfg.dataset.embed_face_body_separately,
+                optimize_density=cfg.dataset.use_density_loss,
             )
             target_ray_values = target_s
 
             # Compute losses
             loss, losses_out = compute_losses(nerf_network, rgb_coarse, rgb_fine, target_ray_values, cfg)
-
+            if cfg.dataset.use_density_loss:
+                weight_bce = weight_bce.mean()
+            else:
+                weight_bce = 0
+            loss = loss + 0.1*weight_bce
         if use_amp:
             grad_scaler.scale(loss).backward()
             grad_scaler.step(optimizer)
@@ -406,7 +411,7 @@ def main():
                     nerf_network.img_idx = img_idx
                     nerf_network.refine_pose = i/2e5 if cfg.dataset.refine_pose else None  # 2e5 following barf paper
                     with torch.autocast(device_type='cuda', dtype=torch.float16, enabled=use_amp):
-                        rgb_coarse, _, _, rgb_fine, _, _ ,weights_background_sample = run_one_iter_of_nerf(
+                        rgb_coarse, _, _, rgb_fine, _, _ ,weights_background_sample, _ = run_one_iter_of_nerf(
                             H,
                             W,
                             focal,
@@ -466,6 +471,7 @@ def main():
                 if cfg.dataset.fix_background:
                     writer.add_image(
                         "validation/background", cast_to_image(background_img[..., :3]), i)
+                if cfg.dataset.fix_background or cfg.dataset.use_density_loss:
                     writer.add_image(
                         "validation/weights", (weights_background_sample.detach().cpu().numpy()), i, dataformats='HW')
 

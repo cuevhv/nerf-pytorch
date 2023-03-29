@@ -84,7 +84,10 @@ def run_network(network_fn, pts, ray_batch, chunksize, embed_fn, embeddirs_fn, e
     radiance_field = radiance_field.reshape(
         list(pts.shape[:-1]) + [radiance_field.shape[-1]]
     )
-    return radiance_field
+    cutoff_ws = get_minibatches(highest_cutoff_w, chunksize=chunksize)
+    cutoff_ws = torch.cat(cutoff_ws, dim=0).reshape(radiance_field.shape[0], -1)
+    cutoff_ws = (cutoff_ws > 0.2).float()
+    return radiance_field, cutoff_ws
 
 
 def predict_and_render_radiance(
@@ -103,6 +106,7 @@ def predict_and_render_radiance(
     cutoff_type=None,
     embed_face_body=False,
     embed_face_body_separately=False,
+    optimize_density=False,
 ):
     # TESTED
     num_rays = ray_batch.shape[0]
@@ -135,7 +139,7 @@ def predict_and_render_radiance(
     pts = ro[..., None, :] + rd[..., None, :] * z_vals[..., :, None]
 
     # NOTE: here are the points that are sampled
-    radiance_field = run_network(
+    radiance_field, cutoff_weight = run_network(
         nerf_network.model_coarse,
         pts,
         ray_batch,
@@ -172,6 +176,9 @@ def predict_and_render_radiance(
         white_background=getattr(options.nerf, mode).white_background,
         background_prior=background_prior,
     )
+    fine_bce = 0
+    if optimize_density:
+        coarse_bce =  torch.mean((cutoff_weight)*torch.log(weights) + (1-cutoff_weight)*torch.log(1-weights))
 
     rgb_fine, disp_fine, acc_fine = None, None, None
     if getattr(options.nerf, mode).num_fine > 0:
@@ -212,7 +219,7 @@ def predict_and_render_radiance(
         # pts -> (N_rays, N_samples + N_importance, 3)
         pts = ro[..., None, :] + rd[..., None, :] * z_vals[..., :, None]
 
-        radiance_field = run_network(
+        radiance_field, cutoff_weight = run_network(
             nerf_network.model_fine,
             pts,
             ray_batch,
@@ -246,8 +253,14 @@ def predict_and_render_radiance(
             white_background=getattr(options.nerf, mode).white_background,
             background_prior=background_prior,
         )
+        fine_bce = 0
+        if optimize_density:
+            fine_bce = torch.mean((cutoff_weight)*torch.log(weights) + (1-cutoff_weight)*torch.log(1-weights))
 
-    return rgb_coarse, disp_coarse, acc_coarse, rgb_fine, disp_fine, acc_fine, weights[:, -1] # background weight
+    weight_bce = None
+    if optimize_density:
+        weight_bce = (fine_bce + coarse_bce)[None,]
+    return rgb_coarse, disp_coarse, acc_coarse, rgb_fine, disp_fine, acc_fine, weights[:, -1], weight_bce # background weight
 
 
 class show_samples:
@@ -320,6 +333,7 @@ def run_one_iter_of_nerf(
     cutoff_type=None,
     embed_face_body=False,
     embed_face_body_separately=False,
+    optimize_density=False,
 ):
     viewdirs = None
     if options.nerf.use_viewdirs:
@@ -371,6 +385,7 @@ def run_one_iter_of_nerf(
             cutoff_type=cutoff_type,
             embed_face_body=embed_face_body,
             embed_face_body_separately=embed_face_body_separately,
+            optimize_density=optimize_density,
         )
         for i, batch in enumerate(batches)
     ]
