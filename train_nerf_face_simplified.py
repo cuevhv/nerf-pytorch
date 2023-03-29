@@ -421,7 +421,7 @@ def main():
                     nerf_network.img_idx = img_idx
                     nerf_network.refine_pose = i/2e5 if cfg.dataset.refine_pose else None  # 2e5 following barf paper
                     with torch.autocast(device_type='cuda', dtype=torch.float16, enabled=use_amp):
-                        rgb_coarse, _, _, rgb_fine, _, _ ,weights_background_sample, _ = run_one_iter_of_nerf(
+                        rgb_coarse, _, _, rgb_fine, _, _ ,weights_background_sample = run_one_iter_of_nerf(
                             H,
                             W,
                             focal,
