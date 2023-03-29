@@ -10,4 +10,4 @@ from .train_utils_simplified import *
 from .volume_rendering_utils import *
 from .barf_utils import RefinePose
 from .nerf_base import NerfBase
-from .load_nerface_batch import NerfFaceDataset
+from .load_nerface_batch import NerfFaceDataset, rescale_bbox

@@ -16,7 +16,7 @@ from nerf import (CfgNode, get_embedding_function, get_ray_bundle, img2mse,
                   load_blender_data, load_nerface_data, load_llff_data, meshgrid_xy, models,
                   mse2psnr, run_one_iter_of_nerf,
                   get_ray_bundle_nerface, RefinePose,
-                  NerfBase, NerfFaceDataset)
+                  NerfBase, NerfFaceDataset, rescale_bbox)
 from utils.losses import compute_losses, l2_nerf_loss
 # from utils.viewer import show_dirs
 
@@ -248,11 +248,21 @@ def main():
             # pose_target = compose_pair(pose_refine[img_idx], pose_target)
 
         if hasattr(cfg.dataset, "mask_face") and cfg.dataset.mask_face:
-            out = face_seg_net.infer(img_target).astype(np.float32)
+            from skimage.morphology import disk, binary_dilation
+            big_bbox = bbox_img.float().numpy()
+            big_bbox[:2] /= H
+            big_bbox[2:] /= W
+            big_bbox = rescale_bbox(big_bbox, 1.5)
+            big_bbox[0:2] *= H  # top, left
+            big_bbox[2:4] *= W  # right, bottom
+            big_bbox = np.floor(big_bbox).astype(np.int)
+            out_bbx = face_seg_net.infer(img_target[big_bbox[0]:big_bbox[1],big_bbox[2]:big_bbox[3]]).astype(np.float32)
+            out = np.zeros([img_target.shape[0], img_target.shape[1]])
+            out[big_bbox[0]:big_bbox[1],big_bbox[2]:big_bbox[3]] = out_bbx
+            out = binary_dilation(out, disk(3, dtype=bool))
             # Mask out image and make background random
             img_target = img_target*out[:,:,None]+((1-out[:,:, None])*np.random.uniform(0,1,(1,1,3))).astype(np.float32)
         img_target = img_target.to(device)
-
 
         if "face" in cfg.dataset.type.lower():
             ray_origins, ray_directions = get_ray_bundle_nerface(H, W, focal, pose_target)
