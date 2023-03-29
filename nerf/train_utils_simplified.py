@@ -43,6 +43,7 @@ def run_network(network_fn, pts, ray_batch, chunksize, embed_fn, embeddirs_fn, e
             threshold_dist = 0.09  # threshold distance
             cutoff_w = 1-torch.sigmoid(tau*(dist_pts_lndmks3d-threshold_dist))
 
+            highest_cutoff_w = cutoff_w.max(axis=-1)[0]
             dir_pts_ldmks3d = embed_ldmks_dir_fn(dir_pts_ldmks3d)
             dir_pts_ldmks3d = dir_pts_ldmks3d*cutoff_w[:,:,None]
             # p_np = cutoff_w.min(axis=-1)[0].detach().cpu().numpy()
@@ -84,6 +85,7 @@ def run_network(network_fn, pts, ray_batch, chunksize, embed_fn, embeddirs_fn, e
     radiance_field = radiance_field.reshape(
         list(pts.shape[:-1]) + [radiance_field.shape[-1]]
     )
+
     cutoff_ws = get_minibatches(highest_cutoff_w, chunksize=chunksize)
     cutoff_ws = torch.cat(cutoff_ws, dim=0).reshape(radiance_field.shape[0], -1)
     cutoff_ws = (cutoff_ws > 0.2).float()
@@ -178,7 +180,7 @@ def predict_and_render_radiance(
     )
     fine_bce = 0
     if optimize_density:
-        coarse_bce =  torch.mean((cutoff_weight)*torch.log(weights) + (1-cutoff_weight)*torch.log(1-weights))
+        coarse_bce = torch.mean((cutoff_weight)*torch.log(torch.clip(weights, 1e-6, 1)) + (1-cutoff_weight)*torch.log(1-torch.clip(weights,1e-6, 1)))
 
     rgb_fine, disp_fine, acc_fine = None, None, None
     if getattr(options.nerf, mode).num_fine > 0:
@@ -255,7 +257,7 @@ def predict_and_render_radiance(
         )
         fine_bce = 0
         if optimize_density:
-            fine_bce = torch.mean((cutoff_weight)*torch.log(weights) + (1-cutoff_weight)*torch.log(1-weights))
+            fine_bce = torch.mean((cutoff_weight)*torch.log(torch.clip(weights, 1e-6, 1)) + (1-cutoff_weight)*torch.log(1-torch.clip(weights, 1e-6, 1)))
 
     weight_bce = None
     if optimize_density:
