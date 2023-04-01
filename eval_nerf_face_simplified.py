@@ -54,6 +54,21 @@ def main():
         help="Checkpoint / pre-trained model to evaluate.",
     )
     parser.add_argument(
+        "--move_eyes",
+        action="store_true",
+        help="move eyes based on current pose",
+    )
+    parser.add_argument(
+        "--same_expression",
+        action="store_true",
+        help="keep fixed expression for all the faces",
+    )
+    parser.add_argument(
+        "--move_jaw",
+        action="store_true",
+        help="move jaw based on current pose",
+    )
+    parser.add_argument(
         "--savedir", type=str, help="Save images to this directory, if specified."
     )
     parser.add_argument(
@@ -152,18 +167,21 @@ def main():
         )
 
     if cfg.dataset.fix_background:
-        # based on nerface https://github.com/gafniguy/4D-Facial-Avatars/blob/989be64216df754a4a34f8f53d7a71af130b57d5/nerface_code/nerf-pytorch/train_transformed_rays.py#L160
-        print("loading gt background to condition on")
-        background_img = Image.open(os.path.join(cfg.dataset.basedir,'bg','00050.png'))
-        background_img.thumbnail((H,W))
-        background_img = torch.from_numpy(np.array(background_img).astype(np.float32)).to(device)
-        background_img = background_img/255
-        print("bg shape", background_img.shape)
-        # print("should be ", images[i_train][0].shape)
-        # assert background_img.shape == images[i_train][0].shape
-    elif hasattr(cfg.dataset, "mask_face") and cfg.dataset.mask_face:
-        background_img = torch.ones((H,W,3)).float().to(device)
-        # assert background_img.shape == images[i_train][0].shape
+        if "me_iris" in cfg.dataset.basedir:
+            background_img = torch.ones((H,W,3)).float().to(device) #(np.random.uniform(0,1,(H,W,3))).astype(np.float32)
+        else:
+            # based on nerface https://github.com/gafniguy/4D-Facial-Avatars/blob/989be64216df754a4a34f8f53d7a71af130b57d5/nerface_code/nerf-pytorch/train_transformed_rays.py#L160
+            print("loading gt background to condition on")
+            background_img = Image.open(os.path.join(cfg.dataset.basedir,'bg','00050.png'))
+            background_img.thumbnail((H,W))
+            background_img = torch.from_numpy(np.array(background_img).astype(np.float32)).to(device)
+            background_img = background_img/255
+            print("bg shape", background_img.shape)
+            # print("should be ", images[i_train][0].shape)
+            # assert background_img.shape == images[i_train][0].shape
+    # elif hasattr(cfg.dataset, "mask_face") and cfg.dataset.mask_face:
+    #     background_img = torch.ones((H,W,3)).float().to(device)
+    #     # assert background_img.shape == images[i_train][0].shape
     else:
         background_img = None
 
@@ -206,9 +224,18 @@ def main():
         os.makedirs(os.path.join(folder_coarse, "disparity"), exist_ok=True)
         os.makedirs(os.path.join(folder_fine, "disparity"), exist_ok=True)
 
+    if configargs.move_eyes or configargs.move_jaw:
+        from models.FLAME import FLAME
+        from models.cfg import get_config
+        flame_cfg, _ = get_config()
+        flame = FLAME(flame_cfg).to(device)
+
+
     # Evaluation loop
     times_per_image = []
     for i, img_idx in enumerate(i_test): #enumerate(tqdm(render_poses)):
+        if configargs.move_eyes or configargs.move_jaw:
+            img_idx = 0
         start = time.time()
         rgb = None, None
         disp = None, None
@@ -233,12 +260,42 @@ def main():
                 names = data["names"]
 
                 if cfg.dataset.use_expression:
-                    expressions_target = data["expressions"].to(device)
+                    if configargs.same_expression:
+                        expressions_target = torch.Tensor([-0.2683267295360565, -0.3052239716053009, 0.15696397423744202, -0.16020876169204712, -0.9562321901321411, -0.8302041292190552, 0.4867173135280609, -0.30865129828453064, 0.3525443971157074, 0.4786713719367981, 0.014528430067002773, 0.07664947211742401, -0.4341607093811035, -0.4624386727809906, 0.831743597984314, -0.8317039012908936, -0.42606717348098755, -0.26466718316078186, 0.16553103923797607, 0.6967203617095947, -0.032229915261268616, -0.5989043712615967, 0.10945571213960648, -0.43940433859825134, -0.31416890025138855, 0.08191820979118347, 0.20036262273788452, 0.1630660593509674, -0.17262309789657593, -0.27226436138153076, -0.2724013924598694, -0.2435075342655182, 0.3367738127708435, 0.05147387087345123, 0.03196321055293083, 0.005107063800096512, -0.1647052764892578, -0.07372607290744781, -0.1916942298412323, -0.16058728098869324, -4.537869244813919e-05, -0.09653253853321075, -0.10618091374635696, -0.12255481630563736, -0.20821602642536163, -0.045160066336393356, -0.17412559688091278, 0.14122718572616577, 0.0075675928965210915, -0.09197781980037689
+                                        ]).to(device)
+                    else:
+                        expressions_target = data["expressions"].to(device)
                 else:
                     expressions_target = None
 
                 if cfg.dataset.use_landmarks3d:
                     landmarks3d_target = data["landmarks3d"].to(device)
+                    if configargs.move_eyes:
+                        shape_params = data["shape_params"].to(device)
+                        jaw_poses = data["jaw_poses"].to(device)
+                        eye_pose = torch.zeros([6]).to(device)
+                        eye_rot = (i-8)*0.125
+                        eye_pose[[1,4]] = eye_rot
+                        if eye_rot > 1:
+                            break
+
+                        verts, landmarks2d, landmarks3d = flame(shape_params=shape_params[None],
+                                                                expression_params=expressions_target[None], pose_params=jaw_poses[None],
+                                                                eye_pose_params=eye_pose[None])
+                        landmarks3d_target = landmarks3d[0]*data["scale_ldmks3d"].item()
+                        names = data["names"].rsplit(".png")[0]+f"_eye_rot_{eye_rot}.png"
+                    if configargs.move_jaw:
+                        shape_params = data["shape_params"].to(device)
+                        jaw_poses = torch.zeros([6]).to(device)
+                        jaw_rot = i*(0.125/2)
+                        jaw_poses[3] = jaw_rot
+                        if jaw_rot > 0.75:
+                            break
+
+                        verts, landmarks2d, landmarks3d = flame(shape_params=shape_params[None],
+                                                                expression_params=expressions_target[None], pose_params=jaw_poses[None],)
+                        landmarks3d_target = landmarks3d[0]*data["scale_ldmks3d"].item()
+                        names = data["names"].rsplit(".png")[0]+f"_jaw_rot_{jaw_rot}.png"
                 else:
                     landmarks3d_target = None
 
