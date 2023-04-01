@@ -147,18 +147,21 @@ def main():
 
 
     if cfg.dataset.fix_background:
-        # based on nerface https://github.com/gafniguy/4D-Facial-Avatars/blob/989be64216df754a4a34f8f53d7a71af130b57d5/nerface_code/nerf-pytorch/train_transformed_rays.py#L160
-        print("loading gt background to condition on")
-        background_img = Image.open(os.path.join(cfg.dataset.basedir,'bg','00050.png'))
-        background_img.thumbnail((H,W))
-        background_img = torch.from_numpy(np.array(background_img).astype(np.float32)).to(device)
-        background_img = background_img/255
-        print("bg shape", background_img.shape)
-        # print("should be ", images[i_train][0].shape)
-        # assert background_img.shape == images[i_train][0].shape
-    elif hasattr(cfg.dataset, "mask_face") and cfg.dataset.mask_face:
-        background_img = torch.ones((H,W,3)).float().to(device)
-        # assert background_img.shape == images[i_train][0].shape
+        if "me_iris" in cfg.dataset.basedir:
+            background_img = (np.random.uniform(0,1,(H,W,3))).astype(np.float32)
+        else:
+            # based on nerface https://github.com/gafniguy/4D-Facial-Avatars/blob/989be64216df754a4a34f8f53d7a71af130b57d5/nerface_code/nerf-pytorch/train_transformed_rays.py#L160
+            print("loading gt background to condition on")
+            background_img = Image.open(os.path.join(cfg.dataset.basedir,'bg','00050.png'))
+            background_img.thumbnail((H,W))
+            background_img = torch.from_numpy(np.array(background_img).astype(np.float32)).to(device)
+            background_img = background_img/255
+            print("bg shape", background_img.shape)
+            # print("should be ", images[i_train][0].shape)
+            # assert background_img.shape == images[i_train][0].shape
+        # elif hasattr(cfg.dataset, "mask_face") and cfg.dataset.mask_face:
+        #     background_img = torch.ones((H,W,3)).float().to(device)
+            # assert background_img.shape == images[i_train][0].shape
     else:
         background_img = None
 
@@ -261,7 +264,10 @@ def main():
             out[big_bbox[0]:big_bbox[1],big_bbox[2]:big_bbox[3]] = out_bbx
             out = binary_dilation(out, disk(3, dtype=bool))
             # Mask out image and make background random
-            img_target = img_target*out[:,:,None]+((1-out[:,:, None])*np.random.uniform(0,1,(1,1,3))).astype(np.float32)
+            random_color = np.random.uniform(0,1,(1,1,3))
+            background_img = torch.from_numpy(np.ones((H,W,3))*random_color).float().to(device)
+            img_target = img_target*out[:,:,None]+((1-out[:,:, None])*random_color).astype(np.float32)
+
         img_target = img_target.to(device)
 
         if "face" in cfg.dataset.type.lower():
