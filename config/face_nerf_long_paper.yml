@@ -9,9 +9,9 @@ experiment:
   # Number of training iterations.
   train_iters: 400000
   # Number of training iterations after which to validate.
-  validate_every: 2000
+  validate_every: 4000
   # Number of training iterations after which to checkpoint.
-  save_every: 5000
+  save_every: 10000 #5000
   # Number of training iterations after which to print progress.
   print_every: 100
 
@@ -20,7 +20,7 @@ dataset:
   # Type of dataset (Blender vs LLFF vs DeepVoxels vs something else)
   type: face_dataloader
   # Base directory of dataset.
-  basedir: data/nerf_synthetic/face
+  basedir: data/nerf_synthetic/me_iris
   # Optionally, provide a path to the pre-cached dataset dir. This
   # overrides the other dataset options.
   cachedir: data/legocache200
@@ -39,9 +39,9 @@ dataset:
   # use expression
   use_expression: True
   # fix background
-  fix_background: True
+  fix_background: False
   # use landmarks3d
-  use_landmarks3d: False
+  use_landmarks3d: True
   # ldmks for color prediction
   landmarks3d_last: False
   # sample more points inside bbox
@@ -49,7 +49,7 @@ dataset:
   # appearance code at for the last part of the network
   use_appearance_code: False
   # deformation code at for the first part of the network
-  use_deformation_code: False
+  use_deformation_code: True
   # split deformation code to embed face and body/background separaterly
   embed_face_body: False
   # encode(landmarks3d-dist, PE(xyz)) and add to the PE(xyz) input
@@ -59,13 +59,15 @@ dataset:
   # use distance between landmarks and sample points
   use_ldmks_dist: False
   # cut off distance between ldmks and samples None only_sincos all
-  cutoff_type: None
+  cutoff_type: only_sincos
   # encode(landmarks3d-dist, PE(xyz)) and add to the PE(xyz) input
-  encode_ldmks3d: False
+  encode_ldmks3d: True
   # refine pose
   refine_pose: False
   # mask only face
-  mask_face: False
+  mask_face: True
+  # use BCE for density loss
+  use_density_loss: False
 
 
 # Model parameters.
@@ -73,7 +75,7 @@ models:
   # Coarse model.
   coarse:
     # Name of the torch.nn.Module class that implements the model.
-    type: FaceNerfPaperNeRFModel #FlexibleNeRFaceModel
+    type: FaceNerfPaperNeRFModel_concat #FlexibleNeRFaceModel
     # Number of layers in the model.
     num_layers: 8
     # Number of hidden units in each layer of the MLP (multi-layer
@@ -94,18 +96,21 @@ models:
     # Additionally use viewing directions as input.
     use_viewdirs: True
     # Whether to include the direction itself in its positional encoding.
-    include_input_dir: False
+    include_input_dir: True
     # Number of encoding functions to use in the positional encoding
     # of the direction.
-    num_encoding_fn_dir: 4
+    num_encoding_fn_dir: 0
     # Whether or not to perform log sampling in the positional encoding
     # of the direction.
     log_sampling_dir: True
     # Whether to include the landmarks distance itself in its positional encoding.
     include_input_ldmks: False
     # Number of encoding functions to use in the positional encoding
-    # of the direction.
+    # of the LANDMARKS distance.
     num_encoding_fn_ldmks: 4
+    # Number of encoding functions to use in the positional encoding
+    # of the LANDMARKS dir.
+    num_encoding_fn_dir_ldmks: 4
     # Whether or not to perform log sampling in the positional encoding
     # of the direction.
     log_sampling_ldmks: True
@@ -113,7 +118,7 @@ models:
   # Fine model.
   fine:
     # Name of the torch.nn.Module class that implements the model.
-    type: FaceNerfPaperNeRFModel #FlexibleNeRFaceModel
+    type: FaceNerfPaperNeRFModel_concat #FlexibleNeRFaceModel
     # Number of layers in the model.
     num_layers: 8
     # Number of hidden units in each layer of the MLP (multi-layer
@@ -134,10 +139,10 @@ models:
     # Additionally use viewing directions as input.
     use_viewdirs: True
     # Whether to include the direction itself in its positional encoding.
-    include_input_dir: False
+    include_input_dir: True
     # Number of encoding functions to use in the positional encoding of
     # the direction.
-    num_encoding_fn_dir: 4
+    num_encoding_fn_dir: 0
     # Whether or not to perform log sampling in the positional encoding
     # of the direction.
     log_sampling_dir: True
@@ -151,7 +156,7 @@ optimizer:
   # optimize apperance code
   appearance_code: False
   # optimize deformation
-  deformation_code: False
+  deformation_code: True
   # use amp
   use_amp: True
 
@@ -170,14 +175,16 @@ nerf:
   encode_position_fn: positional_encoding
   # Encoding function for ray direction (theta, phi).
   encode_direction_fn: positional_encoding
+  # Encoding function for ray direction (theta, phi). spherical_harmonics, pos_enc
+  # encode_ldmks_direction_fn: spherical_harmonics
   # Training-specific parameters.
   train:
     # Number of random rays to retain from each image.
     # These sampled rays are used for training, and the others are discarded.
-    num_random_rays: 4096 #prev 2048  # 1024  # 32 * 32 * 4
+    num_random_rays: 512 #4096 #prev 2048  # 1024  # 32 * 32 * 4
     # Size of each chunk (rays are batched into "chunks" and passed through
     # the network)
-    chunksize: 131072 # prev 2048 #4096  # 131072  # 1024 * 32
+    chunksize: 16 #131072 # prev 2048 #4096  # 131072  # 1024 * 32
     # Whether or not to perturb the sampled depth values.
     perturb: True
     # Number of depth samples per ray for the coarse network.

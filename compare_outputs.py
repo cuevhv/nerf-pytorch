@@ -27,27 +27,51 @@ if __name__ == "__main__":
     pred_fns = get_imgs_fns(args.pred_imgs_folder)
     nerface_fns = get_imgs_fns(args.nerface_imgs_folder)
 
-    save_vid = False
+    save_vid = True
     if save_vid:
         process = (
             ffmpeg
                 .input('pipe:', format='rawvideo', pix_fmt='rgb24', s='{}x{}'.format(512*3, 512))
-                .output("out_vid_mine_vs_mine.mp4", pix_fmt='yuv420p', vcodec='libx264', r=24)
+                .output("out_vid_mine_vs_mine_iris_mask.mp4", pix_fmt='yuv420p', tune='film', vcodec='libx264', r=30)
                 .overwrite_output()
                 .run_async(pipe_stdin=True)
         )
 
+    from utils.face_parsing.bisenet import BiseNet
+    import requests
+    weight_path = "utils/face_parsing/79999_iter.pth"
+    if not os.path.exists(weight_path):
+        print("downloading weights for face parsing")
+        url = "https://drive.google.com/uc?id=154JgKpzCPW82qINcVieuPH3fZ2e0P812&export=download"
+        response = requests.get(url)
+        open(weight_path, "wb").write(response.content)
+    face_seg_net = BiseNet(True, weight_path)
+
+
+    old_img = 0
+
     for i, (gt_fn, pred_fn, nerface_fn) in enumerate(zip(*(gt_fns, pred_fns, nerface_fns))):
-        img_gt = cv2.imread(gt_fn)
+        img_gt = cv2.imread(gt_fn)#[:,:,::-1]
+        out_gt = face_seg_net.infer(img_gt.astype(np.float32)/255.).astype(np.float32)
+        img_gt = (img_gt*out_gt[:,:,None]+(1-out_gt[:,:, None])).astype(np.uint8)
+
         img_pred = cv2.imread(pred_fn)
+        out = face_seg_net.infer(img_pred.astype(np.float32)/255.).astype(np.float32)
+        img_pred = (img_pred*out_gt[:,:,None]*out[:,:,None]+(1-out_gt[:,:,None]*out[:,:, None])).astype(np.uint8)
+
         img_nerface = cv2.imread(nerface_fn)
+        # if i > 0:
+        #     img_nerface = (img_nerface*0.6 + old_img*0.4).astype(np.uint8)
+        # old_img = img_nerface
+        out = face_seg_net.infer(img_nerface.astype(np.float32)/255.).astype(np.float32)
+        img_nerface = (img_nerface*out_gt[:,:,None]*out[:,:,None]+(1-out_gt[:,:,None]*out[:,:, None])).astype(np.uint8)
 
         cv2.putText(img=img_gt, text='GT', org=(10, 25), fontFace=cv2.FONT_HERSHEY_TRIPLEX, fontScale=0.8, color=(0, 255, 0),thickness=1)
-        cv2.putText(img=img_pred, text='ours_encode_ldmks_deform-body-bkground', org=(10, 25), fontFace=cv2.FONT_HERSHEY_TRIPLEX, fontScale=0.8, color=(0, 255, 0),thickness=1)
-        cv2.putText(img=img_nerface, text='ours_encode_ldmks', org=(10, 25), fontFace=cv2.FONT_HERSHEY_TRIPLEX, fontScale=0.8, color=(0, 255, 0),thickness=1)
+        cv2.putText(img=img_pred, text='iris', org=(10, 25), fontFace=cv2.FONT_HERSHEY_TRIPLEX, fontScale=0.8, color=(0, 255, 0),thickness=1)
+        cv2.putText(img=img_nerface, text='nerface', org=(10, 25), fontFace=cv2.FONT_HERSHEY_TRIPLEX, fontScale=0.8, color=(0, 255, 0),thickness=1)
 
         img = np.hstack((img_gt, img_nerface, img_pred))
-        if save_vid: 
+        if save_vid:
             process.stdin.write(
             img[:,:,::-1]
                 .astype(np.uint8)
@@ -59,6 +83,6 @@ if __name__ == "__main__":
     # video.release()
 
 
-        
+
     process.stdin.close()
     process.wait()
