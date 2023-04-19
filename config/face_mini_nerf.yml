@@ -49,9 +49,7 @@ dataset:
   # deformation code at for the first part of the network
   use_deformation_code: False
   # use distance between landmarks and sample points
-  use_ldmks_dist: True
-  # cutoff type
-  cuttoff_type: only_sincos
+  use_ldmks_dist: False
   
 
 # Model parameters.

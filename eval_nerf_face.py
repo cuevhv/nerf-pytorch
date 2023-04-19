@@ -280,8 +280,8 @@ def main():
                 # send all the background to generate the test image
                 background_prior=background_img.view(-1, 3) if cfg.dataset.fix_background else None,
                 landmarks3d=landmarks3d_target,
-                appearance_codes=0*appearance_codes[0].to(device) if cfg.dataset.use_appearance_code else None,  # it can be any from 0 to len(train_imgs) we chose 0 here
-                deformation_codes=0*deformation_codes[9].to(device) if cfg.dataset.use_deformation_code else None,
+                appearance_codes=appearance_codes[0].to(device) if cfg.dataset.use_appearance_code else None,  # it can be any from 0 to len(train_imgs) we chose 0 here
+                deformation_codes=deformation_codes[0].to(device) if cfg.dataset.use_deformation_code else None,
                 use_ldmks_dist=cfg.dataset.use_ldmks_dist,
                 cutoff_type=None if cfg.dataset.cutoff_type == "None" else cfg.dataset.cutoff_type,
                 embed_face_body=cfg.dataset.embed_face_body,

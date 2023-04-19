@@ -25,9 +25,7 @@ def rescale_bbox(bbox, scale=1.):
 
 
 class NerfFaceDataset(Dataset):
-    def __init__(self, basedir: str, load_expressions: bool = True,
-                 load_landmarks3d: bool = True, load_bbox: bool = True,
-                 split: str = 'train', bbox_scale: float= 2.0, preload: bool = False,) -> None:
+    def __init__(self, basedir: str, load_expressions: bool = True, load_landmarks3d: bool = True, load_bbox: bool = True, split: str = 'train', bbox_scale: float= 2.0, preload: bool = False) -> None:
         self.basedir = basedir
         self.load_expressions = load_expressions
         self.load_landmarks3d = load_landmarks3d
@@ -38,8 +36,6 @@ class NerfFaceDataset(Dataset):
         self.frames = metas["frames"]
         self.intrinsics = metas["intrinsics"]
         self.camera_angle_x = metas["camera_angle_x"]
-        self.shape_params = np.array(metas["shape_params"]) if "shape_params" in metas else np.array([0])
-        self.scale_3dldmks = np.array(metas["scale"]) if "scale" in metas else np.array([1])
 
 
     def __len__(self):
@@ -53,7 +49,6 @@ class NerfFaceDataset(Dataset):
         fname = os.path.join(self.basedir, frame["file_path"] + ".png")
         img_rgb = np.asarray(imageio.imread(fname)).astype(np.float32) / 255.0
         poses = np.array(frame["transform_matrix"])
-        jaw_poses = np.array([0,0,0]+frame["jaw_pose"])
 
         H, W = img_rgb.shape[:2]
         camera_angle_x = float(self.camera_angle_x)
@@ -93,10 +88,7 @@ class NerfFaceDataset(Dataset):
                   "expressions": torch.from_numpy(expressions).float(),
                   "landmarks3d": torch.from_numpy(landmarks3d).float(),
                   "bbox": torch.from_numpy(bbox).int(),
-                  "names": os.path.basename(fname),
-                  "shape_params": torch.from_numpy(self.shape_params).float(),
-                  "scale_ldmks3d": torch.from_numpy(self.scale_3dldmks).float(),
-                  "jaw_poses": torch.from_numpy(jaw_poses).float(),}
+                  "names": os.path.basename(fname)}
 
         return sample
 

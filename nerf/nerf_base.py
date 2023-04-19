@@ -39,7 +39,7 @@ class NerfBase(object):
         landmarks3d_last=cfg.dataset.landmarks3d_last,
         encode_ldmks3d=cfg.dataset.encode_ldmks3d,
         embedding_vector_dim=cfg.dataset.embedding_vector_dim,
-        n_landmarks=cfg.dataset.n_ldmks, #68+8 if "iris" in cfg.dataset.basedir else 68,
+        n_landmarks=68+8 if "iris" in cfg.dataset.basedir else 68,
         )
         self.model_coarse.to(self.device)
 
@@ -65,7 +65,7 @@ class NerfBase(object):
             landmarks3d_last=cfg.dataset.landmarks3d_last,
             encode_ldmks3d=cfg.dataset.encode_ldmks3d,
             embedding_vector_dim=cfg.dataset.embedding_vector_dim,
-            n_landmarks=cfg.dataset.n_ldmks, #68+8 if "iris" in cfg.dataset.basedir else 68,
+            n_landmarks=68+8 if "iris" in cfg.dataset.basedir else 68,
             )
 
             self.model_fine.to(self.device)
