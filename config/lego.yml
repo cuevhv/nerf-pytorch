@@ -14,6 +14,8 @@ experiment:
   save_every: 5000
   # Number of training iterations after which to print progress.
   print_every: 100
+  # Save otputs
+  output_dir: output
 
 # Dataset parameters.
 dataset:
