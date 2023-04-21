@@ -81,6 +81,22 @@ def load_nerface_data(basedir, half_res=False, testskip=1, debug=False,
         else:
             skip = testskip
         print(f"loading {s}")
+        # for i, frame in tqdm(enumerate(meta["frames"])):
+        #     fname = os.path.join(basedir, frame["file_path"] + ".png")
+        #     img = np.asarray(imageio.imread(fname))
+        #     bbox = np.array([frame["bbox"][1], frame["bbox"][3], frame["bbox"][0], frame["bbox"][2]])
+        #     # We increase the scale of bbox as deca face detector bbox is around the face and not the head
+        #     bbox = rescale_bbox(bbox, scale=bbox_scale)
+        #     H, W, _ = img.shape
+        #     bbox[0:2] *= H  # top, left
+        #     bbox[2:4] *= W 
+        #     bbox = bbox.astype(np.int)
+        #     import matplotlib.pyplot as plt
+        #     plt.subplot(1,2,1), plt.imshow(img)
+        #     print(img.shape, bbox)
+        #     plt.subplot(1,2,2), plt.imshow(img[bbox[0]:bbox[1], bbox[2]:bbox[3]])
+        #     plt.show()
+
         for i, frame in tqdm(enumerate(meta["frames"][::skip])):
             # if i > 200: break
             fname = os.path.join(basedir, frame["file_path"] + ".png")
