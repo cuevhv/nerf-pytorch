@@ -224,7 +224,7 @@ def main():
         os.makedirs(os.path.join(folder_coarse, "disparity"), exist_ok=True)
         os.makedirs(os.path.join(folder_fine, "disparity"), exist_ok=True)
 
-    if configargs.move_eyes or configargs.move_jaw:
+    if configargs.move_eyes or configargs.move_jaw or configargs.same_expression:
         from models.FLAME import FLAME
         from models.cfg import get_config
         flame_cfg, _ = get_config()
@@ -234,7 +234,7 @@ def main():
     # Evaluation loop
     times_per_image = []
     for i, img_idx in enumerate(i_test): #enumerate(tqdm(render_poses)):
-        if configargs.move_eyes or configargs.move_jaw:
+        if configargs.move_eyes or configargs.move_jaw or configargs.same_expression:
             img_idx = 0
         start = time.time()
         rgb = None, None
@@ -259,14 +259,20 @@ def main():
                 pose_target = data["poses"][:3, :4].to(device)
                 names = data["names"]
 
-                if cfg.dataset.use_expression:
-                    if configargs.same_expression:
-                        expressions_target = torch.Tensor([-0.2683267295360565, -0.3052239716053009, 0.15696397423744202, -0.16020876169204712, -0.9562321901321411, -0.8302041292190552, 0.4867173135280609, -0.30865129828453064, 0.3525443971157074, 0.4786713719367981, 0.014528430067002773, 0.07664947211742401, -0.4341607093811035, -0.4624386727809906, 0.831743597984314, -0.8317039012908936, -0.42606717348098755, -0.26466718316078186, 0.16553103923797607, 0.6967203617095947, -0.032229915261268616, -0.5989043712615967, 0.10945571213960648, -0.43940433859825134, -0.31416890025138855, 0.08191820979118347, 0.20036262273788452, 0.1630660593509674, -0.17262309789657593, -0.27226436138153076, -0.2724013924598694, -0.2435075342655182, 0.3367738127708435, 0.05147387087345123, 0.03196321055293083, 0.005107063800096512, -0.1647052764892578, -0.07372607290744781, -0.1916942298412323, -0.16058728098869324, -4.537869244813919e-05, -0.09653253853321075, -0.10618091374635696, -0.12255481630563736, -0.20821602642536163, -0.045160066336393356, -0.17412559688091278, 0.14122718572616577, 0.0075675928965210915, -0.09197781980037689
+
+                if configargs.same_expression:
+                    expressions_target = torch.Tensor([-0.2683267295360565, -0.3052239716053009, 0.15696397423744202, -0.16020876169204712, -0.9562321901321411, -0.8302041292190552, 0.4867173135280609, -0.30865129828453064, 0.3525443971157074, 0.4786713719367981, 0.014528430067002773, 0.07664947211742401, -0.4341607093811035, -0.4624386727809906, 0.831743597984314, -0.8317039012908936, -0.42606717348098755, -0.26466718316078186, 0.16553103923797607, 0.6967203617095947, -0.032229915261268616, -0.5989043712615967, 0.10945571213960648, -0.43940433859825134, -0.31416890025138855, 0.08191820979118347, 0.20036262273788452, 0.1630660593509674, -0.17262309789657593, -0.27226436138153076, -0.2724013924598694, -0.2435075342655182, 0.3367738127708435, 0.05147387087345123, 0.03196321055293083, 0.005107063800096512, -0.1647052764892578, -0.07372607290744781, -0.1916942298412323, -0.16058728098869324, -4.537869244813919e-05, -0.09653253853321075, -0.10618091374635696, -0.12255481630563736, -0.20821602642536163, -0.045160066336393356, -0.17412559688091278, 0.14122718572616577, 0.0075675928965210915, -0.09197781980037689
                                         ]).to(device)
-                    else:
-                        expressions_target = data["expressions"].to(device)
+                    #expressions_target = (torch.randn(expressions_target.shape[0])*2.).float().to(device)
+                    #expressions_target[10:] = 0
+                    shape_params = data["shape_params"].to(device)
+                    jaw_poses = torch.zeros([6]).to(device)
+                    verts, landmarks2d, landmarks3d = flame(shape_params=shape_params[None],
+                                                            expression_params=expressions_target[None], pose_params=jaw_poses[None],)
+                    landmarks3d_target = landmarks3d[0]*data["scale_ldmks3d"].item()
+                    names = data["names"].rsplit(".png")[0]+f"_eye_rot_{str(i).zfill(5)}.png"
                 else:
-                    expressions_target = None
+                    expressions_target = data["expressions"].to(device)
 
                 if cfg.dataset.use_landmarks3d:
                     landmarks3d_target = data["landmarks3d"].to(device)
@@ -296,8 +302,12 @@ def main():
                                                                 expression_params=expressions_target[None], pose_params=jaw_poses[None],)
                         landmarks3d_target = landmarks3d[0]*data["scale_ldmks3d"].item()
                         names = data["names"].rsplit(".png")[0]+f"_jaw_rot_{jaw_rot}.png"
+
                 else:
                     landmarks3d_target = None
+
+                if not cfg.dataset.use_expression:
+                    expressions_target = None
 
             if cfg.dataset.refine_pose:
                 pose_target = RefinePose()(nerf_network.refine_pose_params[img_idx], pose_target)
