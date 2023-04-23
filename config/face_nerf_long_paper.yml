@@ -69,7 +69,7 @@ dataset:
   # use BCE for density loss
   use_density_loss: False
   # n landmarks
-  n_landmarks: 76  # ldmks + 2*4 eyes
+  n_ldmks: 76  # ldmks + 2*4 eyes
 
 
 # Model parameters.
