@@ -1,11 +1,11 @@
 name: face_anim
 channels:
+  - pytorch3d
   - iopath
   - pytorch
   - nvidia
   - conda-forge
-  - defaults
-  - fvcore
+  - default
 dependencies:
   - python==3.10
   - pytorch=2.0.0=py3.10_cuda11.8_cudnn8.7.0_0
@@ -17,8 +17,9 @@ dependencies:
   - torchvision
   - tqdm
   - scikit-learn
-  - fvcore
   - iopath
+  - fvcore
+  - pytorch3d
   - pip
   - pip:
     - opencv-python-headless
@@ -28,4 +29,4 @@ dependencies:
     - seaborn
     - mediapipe
     - "git+https://github.com/NVlabs/tiny-cuda-nn/#subdirectory=bindings/torch"
-    # need manual instalation - --no-index pytorch3d -f https://dl.fbaipublicfiles.com/pytorch3d/packaging/wheels/py310_cu118_pyt200/download.html
+    # need manual instalation - --no-index pytorch3d --no-cache-dir -f https://dl.fbaipublicfiles.com/pytorch3d/packaging/wheels/py310_cu118_pyt200/download.html
