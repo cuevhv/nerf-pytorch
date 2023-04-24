@@ -258,7 +258,7 @@ def main():
             big_bbox = rescale_bbox(big_bbox, 1.5)
             big_bbox[0:2] *= H  # top, left
             big_bbox[2:4] *= W  # right, bottom
-            big_bbox = np.floor(big_bbox).astype(np.int)
+            big_bbox = np.floor(big_bbox).astype(int)
             out_bbx = face_seg_net.infer(img_target[big_bbox[0]:big_bbox[1],big_bbox[2]:big_bbox[3]]).astype(np.float32)
             out = np.zeros([img_target.shape[0], img_target.shape[1]])
             out[big_bbox[0]:big_bbox[1],big_bbox[2]:big_bbox[3]] = out_bbx
